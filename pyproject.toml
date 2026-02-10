@@ -1,5 +1,5 @@
 [project]
-name = "mcp-feedback-enhanced"
+name = "mcp-feedback-pro"
 version = "2.6.0"
 description = "Enhanced MCP server for interactive user feedback and command execution in AI-assisted development, featuring dual interface support (Web UI and Desktop Application) with intelligent environment detection and cross-platform compatibility."
 readme = "README.md"
@@ -43,11 +43,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Minidoracat/mcp-feedback-enhanced"
-Repository = "https://github.com/Minidoracat/mcp-feedback-enhanced"
-Issues = "https://github.com/Minidoracat/mcp-feedback-enhanced/issues"
+Homepage = "https://github.com/EarthChen/mcp-feedback-enhanced"
+Repository = "https://github.com/EarthChen/mcp-feedback-enhanced"
+Issues = "https://github.com/EarthChen/mcp-feedback-enhanced/issues"
 
 [project.scripts]
+mcp-feedback-pro = "mcp_feedback_enhanced.__main__:main"
 mcp-feedback-enhanced = "mcp_feedback_enhanced.__main__:main"
 interactive-feedback-mcp = "mcp_feedback_enhanced.__main__:main"
 

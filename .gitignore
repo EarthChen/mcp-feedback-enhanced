@@ -1,87 +1,89 @@
-# Python-generated files
+# ===== Python =====
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
 build/
 dist/
 wheels/
-*.egg-info
+sdist/
+.Python
 
-# Development tool caches
+# Virtual environments
+.venv*/
+venv*/
+env/
+
+# Dev tool caches
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
 .coverage
 htmlcov/
+.tox/
+.nox/
 
-# Virtual environments
-.venv*/
-venv*/
-
-
-
-# Logs
-*.log
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Linux
-*~
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Others
-.cursor/rules/
+# uv
 uv.lock
-.mcp_feedback_settings.json
-test_reports/
 
-# Temporary test files
-test_*.py
-
-# User configuration files
-ui_settings.json
-.config/
-
-# Backup files
-*.bak
-*.backup
-*.orig
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Rust/Tauri build artifacts
+# ===== Rust / Tauri =====
 src-tauri/target/
 src-tauri/Cargo.lock
 src-tauri/WixTools/
 src-tauri/gen/
+*.rs.bk
 
-
-
-
-# Tauri bundle outputs
-src-tauri/target/bundle/
-src-tauri/target/release/bundle/
-
-# Node.js (if using Tauri with frontend framework)
+# ===== Node.js =====
 node_modules/
+.pnpm-store/
 package-lock.json
 yarn.lock
 
-# Temporary build files
+# ===== OS files =====
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*~
+
+# ===== Editor / IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# ===== Logs =====
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ===== Environment =====
+.env
+.env.local
+.env.*.local
+
+# ===== Temp / Backup =====
 *.tmp
 *.temp
+*.bak
+*.backup
+*.orig
+
+# ===== Test =====
+test_reports/
+
+# ===== Project-specific =====
+.cursor/rules/
+.mcp_feedback_settings.json
+ui_settings.json
+.config/
+.docs/PROPOSALS/
+
+# Temporary test files
+test_*.py

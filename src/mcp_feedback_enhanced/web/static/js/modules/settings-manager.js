@@ -61,7 +61,10 @@
             // 內置反饋提醒設定
             feedbackReminderEnabled: true,  // 是否啟用內置反饋提醒
             feedbackReminderText: '',       // 自定義提醒文字（空字串使用預設值）
-            newTaskInstructionText: ''      // 自定義新任務系統指令（空字串使用預設值）
+            newTaskInstructionText: '',     // 自定義新任務系統指令（空字串使用預設值）
+            // 上下文刷新提醒設定
+            contextRefreshEnabled: true,    // 是否啟用上下文刷新提醒
+            contextRefreshText: ''          // 自定義上下文刷新提醒文字（空字串使用預設值）
         };
         
         // 當前設定
@@ -434,6 +437,9 @@
 
         // 應用反饋提醒設定
         this.applyFeedbackReminderSettings();
+
+        // 應用上下文刷新提醒設定
+        this.applyContextRefreshSettings();
     };
 
     /**
@@ -672,7 +678,9 @@
 
     SettingsManager.DEFAULT_REMINDER_TEXT = '[IMPORTANT] After completing the task based on the feedback above, you MUST call the `mcp-feedback-pro` tool again to report your progress and get further instructions. Do NOT end your turn without calling this tool.';
 
-    SettingsManager.DEFAULT_NEW_TASK_INSTRUCTION = '[NEW TASK] The user wants to switch to a new task. Please:\n1. Cancel or deprioritize any ongoing work from previous tasks.\n2. Clear your current TODO list if applicable.\n3. Focus entirely on the user\'s new request below.';
+    SettingsManager.DEFAULT_NEW_TASK_INSTRUCTION = '[NEW TASK] The user wants to switch to a completely new task. You MUST:\n1. STOP all ongoing work from previous tasks immediately.\n2. Clear your current TODO list.\n3. Re-read the project root AGENTS.md (or CLAUDE.md) and any linked documentation.\n4. Re-read applicable .cursor/rules/ files for the new task context.\n5. Re-read any user-level rules or conventions that apply to this project.\n6. Focus entirely on the user\'s new request below with a fresh perspective.\n\nTreat this as if you are starting a completely new conversation. Previous context should not influence your approach to the new task.';
+
+    SettingsManager.DEFAULT_CONTEXT_REFRESH_TEXT = '[CONTEXT REFRESH - MANDATORY] Context compression during long conversations may cause you to forget or deprioritize project rules. Before proceeding with your next action, you MUST re-read the following project rules to ensure compliance:\n1. Re-read the project root AGENTS.md (or CLAUDE.md) and any linked documentation\n2. Re-read applicable .cursor/rules/ files for the current task context\n3. Re-read any user-level rules or conventions that apply to this project\n\nDo NOT skip this step. Rule violations due to context loss are preventable.';
 
     /**
      * 應用反饋提醒設定
@@ -697,6 +705,26 @@
             enabled: this.currentSettings.feedbackReminderEnabled,
             customText: !!this.currentSettings.feedbackReminderText,
             customNewTask: !!this.currentSettings.newTaskInstructionText
+        });
+    };
+
+    /**
+     * 應用上下文刷新提醒設定
+     */
+    SettingsManager.prototype.applyContextRefreshSettings = function() {
+        var toggle = Utils.safeQuerySelector('#contextRefreshToggle');
+        if (toggle) {
+            toggle.checked = this.currentSettings.contextRefreshEnabled;
+        }
+
+        var textInput = Utils.safeQuerySelector('#contextRefreshText');
+        if (textInput) {
+            textInput.value = this.currentSettings.contextRefreshText || SettingsManager.DEFAULT_CONTEXT_REFRESH_TEXT;
+        }
+
+        console.log('上下文刷新提醒設定已應用到 UI:', {
+            enabled: this.currentSettings.contextRefreshEnabled,
+            customText: !!this.currentSettings.contextRefreshText
         });
     };
 
@@ -1051,6 +1079,29 @@
                 }
                 self.set('newTaskInstructionText', val);
                 console.log('新任務系統指令已更新');
+            });
+        }
+
+        // 上下文刷新提醒啟用開關
+        var contextRefreshToggle = Utils.safeQuerySelector('#contextRefreshToggle');
+        if (contextRefreshToggle) {
+            contextRefreshToggle.addEventListener('change', function() {
+                var newValue = contextRefreshToggle.checked;
+                self.set('contextRefreshEnabled', newValue);
+                console.log('上下文刷新提醒狀態已更新:', newValue);
+            });
+        }
+
+        // 上下文刷新提醒自定義文字
+        var contextRefreshText = Utils.safeQuerySelector('#contextRefreshText');
+        if (contextRefreshText) {
+            contextRefreshText.addEventListener('change', function(e) {
+                var val = e.target.value.trim();
+                if (val === SettingsManager.DEFAULT_CONTEXT_REFRESH_TEXT) {
+                    val = '';
+                }
+                self.set('contextRefreshText', val);
+                console.log('上下文刷新提醒文字已更新');
             });
         }
 

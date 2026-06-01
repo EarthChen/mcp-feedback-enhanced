@@ -469,6 +469,13 @@
         "newTaskText": "新任务系统指令",
         "newTaskTextDesc": "点击「新任务」按钮时注入的系统指令，清空恢复默认值"
     },
+    "contextRefresh": {
+        "title": "🔄 上下文刷新提醒",
+        "enable": "启用上下文刷新提醒",
+        "enableDesc": "启用后，每次反馈都会提醒 Agent 重新阅读项目规则文件，防止上下文压缩导致规则遗忘",
+        "customText": "上下文刷新提醒文字",
+        "customTextDesc": "自定义提醒 Agent 重新阅读规则的内容，可包含具体文件路径，清空恢复默认值"
+    },
     "autoSubmit": {
         "title": "⏰ 自动定时提交",
         "enable": "启用自动提交",
@@ -640,20 +647,5 @@
         "toggleAutoSubmit": "切换自动提交",
         "toggleNotification": "切换通知",
         "toggleAudioNotification": "切换音效通知"
-    },
-    "asyncFeedback": {
-        "title": "异步反馈",
-        "placeholder": "为 Agent 补充额外信息...",
-        "placeholderInterrupt": "告诉 Agent 停止当前方向，改变策略...",
-        "send": "发送",
-        "modeSupplement": "💬 补充",
-        "modeInterrupt": "⚡ 打断",
-        "statusNone": "无待处理反馈",
-        "statusPending": "反馈待处理 - 等待 Agent 读取",
-        "statusConsumed": "反馈已被 Agent 读取",
-        "submitSuccess": "异步反馈已提交",
-        "submitError": "提交反馈失败",
-        "emptyError": "请输入反馈内容",
-        "collapseTooltip": "切换异步反馈面板"
     }
 }

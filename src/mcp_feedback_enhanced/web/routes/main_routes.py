@@ -614,56 +614,6 @@ def setup_routes(manager: "WebUIManager"):
                 },
             )
 
-    # ===== Async Feedback API =====
-
-    @manager.app.post("/api/async-feedback")
-    async def submit_async_feedback(request: Request):
-        """Submit async feedback to the queue for agent consumption."""
-        try:
-            try:
-                data = await request.json()
-            except Exception:
-                return JSONResponse(
-                    status_code=400,
-                    content={"success": False, "error": "invalid JSON body"},
-                )
-
-            feedback = data.get("feedback", "").strip()
-            if not feedback:
-                return JSONResponse(
-                    status_code=400,
-                    content={"success": False, "error": "empty feedback"},
-                )
-
-            from ...server import get_async_feedback_queue
-
-            queue = get_async_feedback_queue()
-            queue.submit(feedback)
-
-            return JSONResponse(content={"success": True})
-
-        except Exception as e:
-            debug_log(f"異步反饋提交失敗: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"success": False, "error": "internal error"},
-            )
-
-    @manager.app.get("/api/async-feedback/status")
-    async def get_async_feedback_status():
-        """Get the current async feedback queue status."""
-        try:
-            from ...server import get_async_feedback_queue
-
-            queue = get_async_feedback_queue()
-            return JSONResponse(content=queue.peek())
-
-        except Exception as e:
-            debug_log(f"獲取異步反饋狀態失敗: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"has_feedback": False, "error": "internal error"},
-            )
 
 
 async def handle_websocket_message(manager: "WebUIManager", session, data: dict):

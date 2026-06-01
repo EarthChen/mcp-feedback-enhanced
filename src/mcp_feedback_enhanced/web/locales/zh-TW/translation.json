@@ -475,6 +475,13 @@
         "newTaskText": "新任務系統指令",
         "newTaskTextDesc": "點擊「新任務」按鈕時注入的系統指令，清空恢復預設值"
     },
+    "contextRefresh": {
+        "title": "🔄 上下文刷新提醒",
+        "enable": "啟用上下文刷新提醒",
+        "enableDesc": "啟用後，每次回饋都會提醒 Agent 重新閱讀專案規則文件，防止上下文壓縮導致規則遺忘",
+        "customText": "上下文刷新提醒文字",
+        "customTextDesc": "自訂提醒 Agent 重新閱讀規則的內容，可包含具體文件路徑，清空恢復預設值"
+    },
     "autoSubmit": {
         "title": "⏰ 自動定時提交",
         "enable": "啟用自動提交",
@@ -659,20 +666,5 @@
         "toggleAutoSubmit": "切換自動提交",
         "toggleNotification": "切換通知",
         "toggleAudioNotification": "切換音效通知"
-    },
-    "asyncFeedback": {
-        "title": "非同步回饋",
-        "placeholder": "為 Agent 補充額外資訊...",
-        "placeholderInterrupt": "告訴 Agent 停止當前方向，改變策略...",
-        "send": "傳送",
-        "modeSupplement": "💬 補充",
-        "modeInterrupt": "⚡ 打斷",
-        "statusNone": "無待處理回饋",
-        "statusPending": "回饋待處理 - 等待 Agent 讀取",
-        "statusConsumed": "回饋已被 Agent 讀取",
-        "submitSuccess": "非同步回饋已提交",
-        "submitError": "提交回饋失敗",
-        "emptyError": "請輸入回饋內容",
-        "collapseTooltip": "切換非同步回饋面板"
     }
 }

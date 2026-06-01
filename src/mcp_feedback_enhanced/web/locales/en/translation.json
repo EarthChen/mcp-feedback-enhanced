@@ -472,6 +472,13 @@
         "newTaskText": "New Task System Instruction",
         "newTaskTextDesc": "System instruction injected when clicking the \"New Task\" button, clear to restore default"
     },
+    "contextRefresh": {
+        "title": "🔄 Context Refresh Reminder",
+        "enable": "Enable Context Refresh Reminder",
+        "enableDesc": "When enabled, each feedback will remind the Agent to re-read project rule files to prevent rule forgetting due to context compression",
+        "customText": "Context Refresh Reminder Text",
+        "customTextDesc": "Customize the reminder for Agent to re-read rules, can include specific file paths, clear to restore default"
+    },
     "autoSubmit": {
         "title": "⏰ Auto Timed Submit",
         "enable": "Enable Auto Submit",
@@ -654,20 +661,5 @@
         "toggleAutoSubmit": "Toggle auto submit",
         "toggleNotification": "Toggle notification",
         "toggleAudioNotification": "Toggle audio notification"
-    },
-    "asyncFeedback": {
-        "title": "Async Feedback",
-        "placeholder": "Add supplementary info for the agent...",
-        "placeholderInterrupt": "Tell the agent to STOP current approach and change direction...",
-        "send": "Send",
-        "modeSupplement": "💬 Supplement",
-        "modeInterrupt": "⚡ Interrupt",
-        "statusNone": "No pending feedback",
-        "statusPending": "Feedback pending - waiting for agent",
-        "statusConsumed": "Feedback read by agent",
-        "submitSuccess": "Async feedback submitted",
-        "submitError": "Failed to submit feedback",
-        "emptyError": "Please enter feedback content",
-        "collapseTooltip": "Toggle async feedback panel"
     }
 }

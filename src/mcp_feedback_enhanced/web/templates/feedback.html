@@ -15,7 +15,6 @@
     <link rel="stylesheet" href="/static/css/prompt-management.css">
     <link rel="stylesheet" href="/static/css/audio-management.css">
     <link rel="stylesheet" href="/static/css/notification-settings.css">
-    <link rel="stylesheet" href="/static/css/async-feedback.css">
     <style>
         /* 僅保留必要的頁面特定樣式和響應式調整 */
 
@@ -917,6 +916,39 @@
                     </div>
                 </div>
 
+                <!-- 上下文刷新提醒設定卡片 -->
+                <div class="settings-card">
+                    <div class="settings-card-header">
+                        <h3 class="settings-card-title" data-i18n="contextRefresh.title">🔄 上下文刷新提醒</h3>
+                    </div>
+                    <div class="settings-card-body">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label" data-i18n="contextRefresh.enable">啟用上下文刷新提醒</div>
+                                <div class="setting-description" data-i18n="contextRefresh.enableDesc">
+                                    啟用後，每次反饋都會提醒 Agent 重新閱讀項目規則文件，防止上下文壓縮導致規則遺忘
+                                </div>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="contextRefreshToggle" class="toggle-input" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="setting-item" style="border-bottom: none;">
+                            <div class="setting-info" style="width: 100%;">
+                                <div class="setting-label" data-i18n="contextRefresh.customText">上下文刷新提醒文字</div>
+                                <div class="setting-description" data-i18n="contextRefresh.customTextDesc">
+                                    自定義提醒 Agent 重新閱讀規則的內容，可包含具體文件路徑，清空恢復預設值
+                                </div>
+                                <textarea id="contextRefreshText" class="form-input"
+                                    style="width: 100%; min-height: 80px; resize: vertical; font-size: 12px; margin-top: 8px; font-family: monospace;"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 自動定時提交設定卡片 -->
                 <div class="settings-card">
                     <div class="settings-card-header">
@@ -1258,9 +1290,6 @@
     <!-- 通知模組 -->
     <script src="/static/js/modules/notification/notification-manager.js?v=2025010510"></script>
     <script src="/static/js/modules/notification/notification-settings.js?v=2025010510"></script>
-
-    <!-- 異步反饋模組 -->
-    <script src="/static/js/modules/async-feedback.js?v=2025010510"></script>
 
     <!-- 其他模組 -->
     <script src="/static/js/modules/utils.js?v=2025010510"></script>

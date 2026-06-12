@@ -248,6 +248,11 @@
                     button.className = 'btn btn-success';
                     button.disabled = true;
                     break;
+                case 'feedback_queued':
+                    button.textContent = window.i18nManager ? window.i18nManager.t('buttons.submit') : '提交回饋';
+                    button.className = 'btn btn-primary';
+                    button.disabled = false;
+                    break;
             }
         });
     };
@@ -257,7 +262,8 @@
      */
     UIManager.prototype.updateFeedbackInputs = function() {
         const feedbackInput = Utils.safeQuerySelector('#combinedFeedbackText');
-        const canInput = this.feedbackState === Utils.CONSTANTS.FEEDBACK_WAITING;
+        const canInput = this.feedbackState === Utils.CONSTANTS.FEEDBACK_WAITING ||
+                         this.feedbackState === 'feedback_queued';
 
         if (feedbackInput) {
             feedbackInput.disabled = !canInput;
@@ -273,7 +279,8 @@
             Utils.safeQuerySelector('#combinedImageUploadArea')
         ].filter(function(area) { return area !== null; });
 
-        const canUpload = this.feedbackState === Utils.CONSTANTS.FEEDBACK_WAITING;
+        const canUpload = this.feedbackState === Utils.CONSTANTS.FEEDBACK_WAITING ||
+                          this.feedbackState === 'feedback_queued';
         uploadAreas.forEach(function(area) {
             if (canUpload) {
                 area.classList.remove('disabled');

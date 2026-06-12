@@ -498,58 +498,7 @@ async def interactive_feedback(
         save_feedback_to_file(result)
 
         # 建立回饋項目列表
-        feedback_items = []
-
-        # 添加文字回饋
-        if (
-            result.get("interactive_feedback")
-            or result.get("command_logs")
-            or result.get("images")
-        ):
-            feedback_text = create_feedback_text(result)
-            feedback_items.append(TextContent(type="text", text=feedback_text))
-            debug_log("文字回饋已添加")
-
-        # 添加圖片回饋
-        if result.get("images"):
-            mcp_images = process_images(result["images"])
-            # 修復 arg-type 錯誤 - 直接擴展列表
-            feedback_items.extend(mcp_images)
-            debug_log(f"已添加 {len(mcp_images)} 張圖片")
-
-        # 確保至少有一個回饋項目
-        if not feedback_items:
-            feedback_items.append(
-                TextContent(type="text", text="用戶未提供任何回饋內容。")
-            )
-
-        # Handle clear_context: prepend system instruction when user requests a new task
-        if result.get("clear_context"):
-            clear_instruction = _get_new_task_instruction(result)
-            if feedback_items and isinstance(feedback_items[0], TextContent):
-                feedback_items[0] = TextContent(
-                    type="text",
-                    text=clear_instruction + "\n\n---\n" + feedback_items[0].text,
-                )
-            else:
-                feedback_items.insert(
-                    0, TextContent(type="text", text=clear_instruction)
-                )
-            debug_log("已添加清除上下文指令（新任務模式）")
-
-        # Append built-in reminder if enabled
-        reminder_text = _get_feedback_reminder(result)
-        if reminder_text:
-            feedback_items.append(TextContent(type="text", text=reminder_text))
-            debug_log("已添加內置反饋提醒")
-
-        # Append context refresh reminder if enabled (last position for recency bias)
-        # Skip when clear_context is set, since [NEW TASK] already includes rule re-read instructions
-        if not result.get("clear_context"):
-            context_refresh_text = _get_context_refresh_reminder(result)
-            if context_refresh_text:
-                feedback_items.append(TextContent(type="text", text=context_refresh_text))
-                debug_log("已添加上下文刷新提醒")
+        feedback_items = _assemble_feedback_items(result)
 
         debug_log(f"回饋收集完成，共 {len(feedback_items)} 個項目")
         return feedback_items
@@ -661,6 +610,85 @@ def _get_new_task_instruction(result: dict) -> str:
     if custom_text and custom_text.strip():
         return custom_text.strip()
     return _DEFAULT_NEW_TASK_INSTRUCTION
+
+
+def _assemble_feedback_items(result: dict) -> list[TextContent]:
+    """Assemble feedback items from result dict.
+
+    This builds the list of TextContent items that will be returned to the agent,
+    including user feedback, images, system instructions, and reminders.
+
+    When queued_items is present, each item is assembled independently,
+    and system-level prompt attachments (NEW TASK, reminders) are added once globally.
+    """
+    feedback_items: list[TextContent] = []
+    queued_items = result.get("queued_items", [])
+
+    if queued_items:
+        # Multi-item mode: assemble each queued item independently
+        first_item = {
+            "interactive_feedback": result.get("interactive_feedback", ""),
+            "command_logs": result.get("command_logs", ""),
+            "images": result.get("images", []),
+        }
+        all_items = [first_item] + queued_items
+
+        for item in all_items:
+            item_feedback = create_feedback_text(item)
+            feedback_items.append(TextContent(type="text", text=item_feedback))
+            if item.get("images"):
+                mcp_images = process_images(item["images"])
+                feedback_items.extend(mcp_images)
+
+        # Apply global prompt attachments once
+        any_clear = result.get("clear_context") or any(
+            qi.get("clear_context") for qi in queued_items
+        )
+        if any_clear:
+            clear_instruction = _get_new_task_instruction(result)
+            feedback_items.insert(0, TextContent(type="text", text=clear_instruction))
+
+        reminder_text = _get_feedback_reminder(result)
+        if reminder_text:
+            feedback_items.append(TextContent(type="text", text=reminder_text))
+
+        if not any_clear:
+            context_refresh_text = _get_context_refresh_reminder(result)
+            if context_refresh_text:
+                feedback_items.append(TextContent(type="text", text=context_refresh_text))
+    else:
+        # Single-item mode: original behavior (unchanged)
+        if (
+            result.get("interactive_feedback")
+            or result.get("command_logs")
+            or result.get("images")
+        ):
+            feedback_text = create_feedback_text(result)
+            feedback_items.append(TextContent(type="text", text=feedback_text))
+
+        if result.get("images"):
+            mcp_images = process_images(result["images"])
+            feedback_items.extend(mcp_images)
+
+        if not feedback_items:
+            feedback_items.append(
+                TextContent(type="text", text="用戶未提供任何回饋內容。")
+            )
+
+        if result.get("clear_context"):
+            clear_instruction = _get_new_task_instruction(result)
+            feedback_items.insert(0, TextContent(type="text", text=clear_instruction))
+
+        reminder_text = _get_feedback_reminder(result)
+        if reminder_text:
+            feedback_items.append(TextContent(type="text", text=reminder_text))
+
+        if not result.get("clear_context"):
+            context_refresh_text = _get_context_refresh_reminder(result)
+            if context_refresh_text:
+                feedback_items.append(TextContent(type="text", text=context_refresh_text))
+
+    return feedback_items
 
 
 async def launch_web_feedback_ui(project_dir: str, summary: str, timeout: int) -> dict:

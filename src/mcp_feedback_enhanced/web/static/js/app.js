@@ -52,6 +52,7 @@
         // 應用程式狀態
         this.isInitialized = false;
         this.pendingSubmission = null;
+        this.feedbackQueue = [];
 
         // 初始化防抖函數
         this.initDebounceHandlers();
@@ -767,8 +768,18 @@
      * 處理回饋接收
      */
     FeedbackApp.prototype.handleFeedbackReceived = function(data) {
-        // 使用 UI 管理器設置狀態
-        this.uiManager.setFeedbackState(window.MCPFeedback.Utils.CONSTANTS.FEEDBACK_SUBMITTED);
+        const Utils = window.MCPFeedback.Utils;
+        const currentState = this.uiManager ? this.uiManager.getFeedbackState() : null;
+
+        // 如果已提交/已排隊，直接進入排隊狀態
+        if (currentState === Utils.CONSTANTS.FEEDBACK_SUBMITTED || currentState === 'feedback_queued') {
+            this.uiManager.setFeedbackState('feedback_queued');
+            this.updateQueueIndicator();
+            return;
+        }
+
+        // 首次提交 — 顯示成功後進入排隊狀態
+        this.uiManager.setFeedbackState(Utils.CONSTANTS.FEEDBACK_SUBMITTED);
         this.uiManager.setLastSubmissionTime(Date.now());
 
         // 停止自動提交計時器（如果正在運行）
@@ -780,10 +791,10 @@
         // 顯示成功訊息
         if (data.messageCode && window.i18nManager) {
             const message = window.i18nManager.t(data.messageCode, data.params);
-            window.MCPFeedback.Utils.showMessage(message, window.MCPFeedback.Utils.CONSTANTS.MESSAGE_SUCCESS);
+            Utils.showMessage(message, Utils.CONSTANTS.MESSAGE_SUCCESS);
         } else {
             const successMessage = window.i18nManager ? window.i18nManager.t('feedback.submitSuccess') : '回饋提交成功！';
-            window.MCPFeedback.Utils.showMessage(data.message || successMessage, window.MCPFeedback.Utils.CONSTANTS.MESSAGE_SUCCESS);
+            Utils.showMessage(data.message || successMessage, Utils.CONSTANTS.MESSAGE_SUCCESS);
         }
 
         // 更新 AI 摘要區域顯示「已送出反饋」狀態
@@ -795,6 +806,13 @@
 
         // 刷新會話列表以顯示最新狀態
         this.refreshSessionList();
+
+        // 進入排隊狀態，允許繼續提交
+        var self = this;
+        setTimeout(function() {
+            self.uiManager.setFeedbackState('feedback_queued');
+            self.updateQueueIndicator();
+        }, 300);
 
         console.log('反饋已提交，頁面保持開啟狀態');
     };
@@ -810,6 +828,17 @@
         } else {
             console.log('⚠️ 會話管理器未初始化，跳過會話列表刷新');
         }
+    };
+
+    /**
+     * 更新隊列指示器
+     */
+    FeedbackApp.prototype.updateQueueIndicator = function() {
+        var count = this.feedbackQueue ? this.feedbackQueue.length : 0;
+        var indicator = window.MCPFeedback.Utils.safeQuerySelector('#queueIndicator');
+        var countEl = window.MCPFeedback.Utils.safeQuerySelector('#queueCount');
+        if (indicator) indicator.style.display = count > 0 ? 'flex' : 'none';
+        if (countEl) countEl.textContent = count;
     };
 
     /**
@@ -891,7 +920,12 @@
                 // 2. 刷新頁面內容（AI 摘要、表單等）
                 self.refreshPageContent();
 
-                // 3. 重置表單狀態
+                // 3. 清空隊列並重置表單狀態
+                if (self.feedbackQueue && self.feedbackQueue.length > 0) {
+                    var queuedItems = self.feedbackQueue.splice(0);
+                    self.webSocketManager.send({ type: 'drain_queue', items: queuedItems });
+                }
+                self.feedbackQueue = [];
                 self.clearFeedback();
 
                 // 4. 重置回饋狀態為等待中
@@ -1129,6 +1163,29 @@
         // 收集回饋數據並提交
         const feedbackData = this.collectFeedbackData(options);
         if (!feedbackData) {
+            return;
+        }
+
+        // 如果已提交/已排隊，加入本地隊列
+        const currentState = this.uiManager ? this.uiManager.getFeedbackState() : null;
+        const Utils = window.MCPFeedback.Utils;
+        if (currentState === 'feedback_queued' ||
+            currentState === Utils.CONSTANTS.FEEDBACK_SUBMITTED) {
+            this.feedbackQueue.push(feedbackData);
+            this.recordUserMessage(feedbackData);
+            this.updateQueueIndicator();
+            this.webSocketManager.send({
+                type: 'submit_feedback',
+                feedback: feedbackData.feedback,
+                images: feedbackData.images,
+                settings: feedbackData.settings,
+                clear_context: feedbackData.clear_context || false,
+                queued: true
+            });
+            if (this.uiManager) this.uiManager.resetFeedbackForm(false);
+            if (this.imageHandler) this.imageHandler.clearImages();
+            const msg = window.i18nManager ? window.i18nManager.t('feedback.queuedSuccess') : '回饋已加入隊列';
+            Utils.showMessage(msg, Utils.CONSTANTS.MESSAGE_INFO);
             return;
         }
 

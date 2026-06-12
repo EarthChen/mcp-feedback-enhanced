@@ -626,7 +626,31 @@ async def handle_websocket_message(manager: "WebUIManager", session, data: dict)
         images = data.get("images", [])
         settings = data.get("settings", {})
         clear_context = data.get("clear_context", False)
-        await session.submit_feedback(feedback, images, settings, clear_context=clear_context)
+        queued = data.get("queued", False)
+
+        if queued and session.status.value == "feedback_submitted":
+            await session.enqueue_feedback(feedback, images, settings, clear_context)
+        else:
+            await session.submit_feedback(feedback, images, settings, clear_context=clear_context)
+
+    elif message_type == "drain_queue":
+        # 將前端隊列項目加入後端隊列
+        items = data.get("items", [])
+        for item in items:
+            await session.enqueue_feedback(
+                item.get("interactive_feedback", ""),
+                item.get("images", []),
+                item.get("settings", {}),
+                item.get("clear_context", False),
+            )
+        if session.websocket:
+            try:
+                await session.websocket.send_json({
+                    "type": "queue_drained",
+                    "count": len(items),
+                })
+            except Exception:
+                pass
 
     elif message_type == "run_command":
         # 執行命令

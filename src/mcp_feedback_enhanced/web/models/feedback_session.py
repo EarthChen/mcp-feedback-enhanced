@@ -135,6 +135,7 @@ class WebFeedbackSession:
         self.images: list[dict] = []
         self.settings: dict[str, Any] = {}  # 圖片設定
         self.feedback_completed = threading.Event()
+        self.feedback_queue: list[dict[str, Any]] = []
         self.process: subprocess.Popen | None = None
         self.command_logs: list[str] = []
         self.user_messages: list[dict] = []  # 用戶消息記錄
@@ -281,6 +282,38 @@ class WebFeedbackSession:
             SessionStatus.TIMEOUT,
             SessionStatus.EXPIRED,
         ]
+
+    async def enqueue_feedback(
+        self,
+        feedback: str,
+        images: list[dict[str, Any]],
+        settings: dict[str, Any] | None = None,
+        clear_context: bool = False,
+    ):
+        """將回饋加入隊列（agent 返回後批量處理）"""
+        self.feedback_queue.append({
+            "interactive_feedback": feedback,
+            "images": self._process_images(images),
+            "settings": settings or {},
+            "clear_context": clear_context,
+        })
+        self.last_activity = time.time()
+        if self.websocket:
+            try:
+                await self.websocket.send_json({
+                    "type": "notification",
+                    "code": "FEEDBACK_QUEUED",
+                    "severity": "info",
+                    "queue_count": len(self.feedback_queue),
+                })
+            except Exception:
+                pass
+
+    def drain_feedback_queue(self) -> list[dict[str, Any]]:
+        """取出並清空隊列中的所有回饋項目"""
+        items = list(self.feedback_queue)
+        self.feedback_queue.clear()
+        return items
 
     def get_status_info(self) -> dict[str, Any]:
         """獲取會話狀態信息"""

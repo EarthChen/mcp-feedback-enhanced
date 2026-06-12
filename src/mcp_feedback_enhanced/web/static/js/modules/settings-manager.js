@@ -676,7 +676,7 @@
         descriptionElement.textContent = description;
     };
 
-    SettingsManager.DEFAULT_REMINDER_TEXT = '[IMPORTANT] After completing the task based on the feedback above, you MUST call the `mcp-feedback-pro` tool again to report your progress and get further instructions. Do NOT end your turn without calling this tool.';
+    SettingsManager.DEFAULT_REMINDER_TEXT = '[IMPORTANT] After completing the task based on the feedback above, you MUST call the `interactive_feedback` tool again to report your progress and get further instructions. Do NOT end your turn without calling this tool.';
 
     SettingsManager.DEFAULT_NEW_TASK_INSTRUCTION = '[NEW TASK] The user wants to switch to a completely new task. You MUST:\n1. STOP all ongoing work from previous tasks immediately.\n2. Clear your current TODO list.\n3. Re-read the project root AGENTS.md (or CLAUDE.md) and any linked documentation.\n4. Re-read applicable .cursor/rules/ files for the new task context.\n5. Re-read any user-level rules or conventions that apply to this project.\n6. Focus entirely on the user\'s new request below with a fresh perspective.\n\nTreat this as if you are starting a completely new conversation. Previous context should not influence your approach to the new task.';
 

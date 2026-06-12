@@ -2210,3 +2210,22 @@ textarea:-ms-input-placeholder,
     transition: all 0.3s ease;
 }
 
+
+/* 隊列指示器 */
+.queue-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 14px;
+    margin: 8px 0;
+    background: var(--info-bg, #e3f2fd);
+    border: 1px solid var(--info-border, #90caf9);
+    border-radius: 16px;
+    font-size: 0.85em;
+    color: var(--info-text, #1565c0);
+}
+.queue-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}

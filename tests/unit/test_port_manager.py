@@ -11,7 +11,9 @@ import socket
 import time
 from unittest.mock import patch
 
+import psutil
 import pytest
+from unittest.mock import MagicMock
 
 # 移除手動路徑操作，讓 mypy 和 pytest 使用正確的模組解析
 from mcp_feedback_enhanced.web.utils.port_manager import PortManager
@@ -107,10 +109,12 @@ class TestPortManager:
             if result:  # 如果找到了進程（在某些環境下可能找不到）
                 assert isinstance(result, dict)
                 assert "pid" in result
+                assert "ppid" in result
                 assert "name" in result
                 assert "cmdline" in result
                 assert isinstance(result["pid"], int)
                 assert result["pid"] > 0
+                assert isinstance(result["ppid"], int)
         finally:
             server_socket.close()
 
@@ -193,12 +197,56 @@ class TestPortManager:
             for server in servers:
                 server.close()
 
+    # === _is_orphan_process 直接測試 ===
+
+    def test_is_orphan_process_ppid_zero_not_orphan(self):
+        """ppid=0（缺省值/未知）不應被判定為孤兒，避免誤殺活躍進程"""
+        # ppid=0 表示無法獲取父進程信息，應保守返回 False（不殺）
+        result = PortManager._is_orphan_process(ppid=0)
+        assert result is False
+
+    def test_is_orphan_process_ppid_negative_not_orphan(self):
+        """ppid<0（異常值）不應被判定為孤兒"""
+        result = PortManager._is_orphan_process(ppid=-1)
+        assert result is False
+
     @patch("mcp_feedback_enhanced.web.utils.port_manager.psutil.Process")
-    def test_should_cleanup_process_mcp_process(self, mock_process):
-        """測試是否應該清理 MCP 相關進程"""
-        # 模擬 MCP 相關進程
+    def test_is_orphan_process_ppid_one_orphan(self, mock_process):
+        """ppid=1（init/systemd 收養）應被判定為孤兒"""
+        mock_process.side_effect = psutil.NoSuchProcess(1)
+        result = PortManager._is_orphan_process(ppid=1)
+        assert result is True
+
+    @patch("mcp_feedback_enhanced.web.utils.port_manager.psutil.Process")
+    def test_is_orphan_process_parent_dead(self, mock_process):
+        """父進程已退出（NoSuchProcess）→ 孤兒"""
+        mock_process.side_effect = psutil.NoSuchProcess(999)
+        result = PortManager._is_orphan_process(ppid=999)
+        assert result is True
+
+    @patch("mcp_feedback_enhanced.web.utils.port_manager.psutil.Process")
+    def test_is_orphan_process_parent_alive(self, mock_process):
+        """父進程仍存活 → 非孤兒"""
+        mock_process.return_value = MagicMock()
+        result = PortManager._is_orphan_process(ppid=100)
+        assert result is False
+
+    @patch("mcp_feedback_enhanced.web.utils.port_manager.psutil.Process")
+    def test_is_orphan_process_parent_access_denied(self, mock_process):
+        """無權限訪問父進程 → 非孤兒（保守策略）"""
+        mock_process.side_effect = psutil.AccessDenied(100)
+        result = PortManager._is_orphan_process(ppid=100)
+        assert result is False
+
+    # === _should_cleanup_process 測試 ===
+
+    @patch("mcp_feedback_enhanced.web.utils.port_manager.psutil.Process")
+    def test_should_cleanup_process_mcp_orphan(self, mock_process):
+        """測試孤兒 MCP 進程應被清理（父進程已退出）"""
+        mock_process.side_effect = psutil.NoSuchProcess(999)
         process_info = {
             "pid": 1234,
+            "ppid": 999,  # 父進程已不存在
             "name": "python.exe",
             "cmdline": "python -m mcp-feedback-enhanced test --web",
             "create_time": time.time(),
@@ -207,6 +255,36 @@ class TestPortManager:
 
         result = PortManager._should_cleanup_process(process_info)
         assert result is True
+
+    @patch("mcp_feedback_enhanced.web.utils.port_manager.psutil.Process")
+    def test_should_cleanup_process_mcp_active(self, mock_process):
+        """測試活躍 MCP 進程不應被清理（父進程仍存活）"""
+        mock_process.return_value = MagicMock()  # 父進程存在
+        process_info = {
+            "pid": 1234,
+            "ppid": 100,  # 父進程仍存活
+            "name": "python.exe",
+            "cmdline": "python -m mcp-feedback-enhanced test --web",
+            "create_time": time.time(),
+            "status": "running",
+        }
+
+        result = PortManager._should_cleanup_process(process_info)
+        assert result is False
+
+    def test_should_cleanup_process_mcp_missing_ppid(self):
+        """缺少 ppid 字段時不應誤判為孤兒（保守策略，不殺）"""
+        process_info = {
+            "pid": 1234,
+            # 故意不含 ppid
+            "name": "python.exe",
+            "cmdline": "python -m mcp-feedback-enhanced test --web",
+            "create_time": time.time(),
+            "status": "running",
+        }
+
+        result = PortManager._should_cleanup_process(process_info)
+        assert result is False
 
     @patch("mcp_feedback_enhanced.web.utils.port_manager.psutil.Process")
     def test_should_cleanup_process_other_process(self, mock_process):

@@ -58,6 +58,9 @@ class WebUIManager:
     """Web UI 管理器 - 重構為單一活躍會話模式"""
 
     def __init__(self, host: str = "127.0.0.1", port: int | None = None):
+        # 生成唯一實例 ID，用於多實例隔離和調試
+        self.instance_id = f"mcp-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+
         # 確定偏好主機：環境變數 > 參數 > 預設值 127.0.0.1
         env_host = os.getenv("MCP_WEB_HOST")
         if env_host:
@@ -67,8 +70,8 @@ class WebUIManager:
             self.host = host
             debug_log(f"未設定 MCP_WEB_HOST 環境變數，使用預設主機 {self.host}")
 
-        # 確定偏好端口：環境變數 > 參數 > 預設值 8765
-        preferred_port = 8765
+        # 確定偏好端口：環境變數 > 參數 > 預設值 0（系統自動分配，支援多實例隔離）
+        preferred_port = 0
 
         # 檢查環境變數 MCP_WEB_PORT
         env_port = os.getenv("MCP_WEB_PORT")
@@ -84,14 +87,14 @@ class WebUIManager:
                     debug_log(f"使用環境變數指定的端口: {preferred_port}")
                 else:
                     debug_log(
-                        f"MCP_WEB_PORT 值無效 ({custom_port})，必須在 1024-65535 範圍內或為 0，使用預設端口 8765"
+                        f"MCP_WEB_PORT 值無效 ({custom_port})，必須在 1024-65535 範圍內或為 0，使用自動端口分配"
                     )
             except ValueError:
                 debug_log(
-                    f"MCP_WEB_PORT 格式錯誤 ({env_port})，必須為數字，使用預設端口 8765"
+                    f"MCP_WEB_PORT 格式錯誤 ({env_port})，必須為數字，使用自動端口分配"
                 )
         else:
-            debug_log(f"未設定 MCP_WEB_PORT 環境變數，使用預設端口 {preferred_port}")
+            debug_log(f"未設定 MCP_WEB_PORT 環境變數，使用自動端口分配")
 
         # 使用增強的端口管理，測試模式下禁用自動清理避免權限問題
         auto_cleanup = os.environ.get("MCP_TEST_MODE", "").lower() != "true"
@@ -164,7 +167,7 @@ class WebUIManager:
         # 同步初始化基本組件
         self._init_basic_components()
 
-        debug_log(f"WebUIManager 基本初始化完成，將在 {self.host}:{self.port} 啟動")
+        debug_log(f"WebUIManager 基本初始化完成，實例 {self.instance_id}，將在 {self.host}:{self.port} 啟動")
         debug_log("回饋模式: web")
 
     def _init_basic_components(self):
@@ -1159,7 +1162,7 @@ async def launch_web_feedback_ui(
         # Web 模式：智能開啟瀏覽器
         has_active_tabs = await manager.smart_open_browser(feedback_url)
 
-    debug_log(f"[DEBUG] 服務器地址: {feedback_url}")
+    debug_log(f"[DEBUG] 實例 {manager.instance_id} 服務器地址: {feedback_url}")
 
     # 如果檢測到活躍標籤頁，消息已在 smart_open_browser 中發送，無需額外處理
     if has_active_tabs:

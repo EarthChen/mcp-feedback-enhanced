@@ -38,6 +38,7 @@ class PortManager:
                         process = psutil.Process(conn.pid)
                         return {
                             "pid": conn.pid,
+                            "ppid": process.ppid(),
                             "name": process.name(),
                             "cmdline": " ".join(process.cmdline()),
                             "create_time": process.create_time(),
@@ -213,9 +214,38 @@ class PortManager:
         )
 
     @staticmethod
+    def _is_orphan_process(ppid: int) -> bool:
+        """
+        判斷進程是否為孤兒進程（父進程已退出）
+
+        Args:
+            ppid: 父進程 PID
+
+        Returns:
+            bool: 是否為孤兒進程
+        """
+        # ppid <= 0 表示無法確定父進程，保守返回 False（不清理）
+        if ppid <= 0:
+            return False
+
+        try:
+            psutil.Process(ppid)
+            # 父進程存在，非孤兒
+            return False
+        except psutil.NoSuchProcess:
+            # 父進程已退出，是孤兒
+            return True
+        except psutil.AccessDenied:
+            # 無權限確認父進程狀態，保守返回 False（不清理）
+            return False
+
+    @staticmethod
     def _should_cleanup_process(process_info: dict[str, Any]) -> bool:
         """
         判斷是否應該清理指定進程
+
+        對 MCP 相關進程：只清理孤兒進程（父進程已退出），不殺活躍實例
+        對非 MCP 的 python/uvicorn 進程：保留原有清理邏輯
 
         Args:
             process_info: 進程信息字典
@@ -223,18 +253,28 @@ class PortManager:
         Returns:
             bool: 是否應該清理該進程
         """
-        # 檢查是否是 MCP Feedback Enhanced 相關進程
         cmdline = process_info.get("cmdline", "").lower()
         process_name = process_info.get("name", "").lower()
+        pid = process_info.get("pid", 0)
+        ppid = process_info.get("ppid", -1)
 
-        # 如果是自己的進程，允許清理
+        # MCP Feedback Enhanced 相關進程：只清理孤兒
         if any(
             keyword in cmdline
             for keyword in ["mcp-feedback-enhanced", "mcp_feedback_enhanced"]
         ):
-            return True
+            if PortManager._is_orphan_process(ppid):
+                debug_log(
+                    f"MCP 實例 {process_name} (PID: {pid}) 是孤兒進程（父進程 {ppid} 已退出），允許清理"
+                )
+                return True
+            else:
+                debug_log(
+                    f"MCP 實例 {process_name} (PID: {pid}) 仍活躍（父進程 {ppid} 存在），跳過清理以支援多實例"
+                )
+                return False
 
-        # 如果是 Python 進程且命令行包含相關關鍵字
+        # 非 MCP 的 python/uvicorn 進程：保留原有清理邏輯
         if "python" in process_name and any(
             keyword in cmdline for keyword in ["uvicorn", "fastapi"]
         ):
@@ -242,7 +282,7 @@ class PortManager:
 
         # 其他情況下，為了安全起見，不自動清理
         debug_log(
-            f"進程 {process_info['name']} (PID: {process_info['pid']}) 不是 MCP 相關進程，跳過自動清理"
+            f"進程 {process_name} (PID: {pid}) 不是 MCP 相關進程，跳過自動清理"
         )
         return False
 

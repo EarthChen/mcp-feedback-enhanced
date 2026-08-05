@@ -23,6 +23,7 @@ MCP Feedback Enhanced 伺服器主要模組
 重構: 模塊化設計
 """
 
+import asyncio
 import base64
 import io
 import json
@@ -30,7 +31,7 @@ import os
 import sys
 from typing import Annotated, Any
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from fastmcp.utilities.types import Image as MCPImage
 from mcp.types import TextContent
 from pydantic import Field
@@ -111,6 +112,7 @@ _encoding_initialized = init_encoding()
 SERVER_NAME = "互動式回饋收集 MCP"
 SSH_ENV_VARS = ["SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"]
 REMOTE_ENV_VARS = ["REMOTE_CONTAINERS", "CODESPACES"]
+PROGRESS_INTERVAL_SECONDS = 60  # Cursor idle timeout is 120s; send heartbeat every 60s
 
 
 # 初始化 MCP 服務器
@@ -426,6 +428,65 @@ def process_images(images_data: list[dict]) -> list[MCPImage]:
 
 
 # ===== MCP 工具定義 =====
+async def _interactive_feedback_impl(
+    project_directory: str = ".",
+    summary: str = "我已完成了您請求的任務。",
+    timeout: int = 600,
+    ctx: Context | None = None,
+) -> list:
+    """Core implementation of interactive_feedback, extracted for testability."""
+    is_remote = is_remote_environment()
+    is_wsl = is_wsl_environment()
+
+    debug_log(f"環境偵測結果 - 遠端: {is_remote}, WSL: {is_wsl}")
+    debug_log("使用介面: Web UI")
+
+    try:
+        if not os.path.exists(project_directory):
+            project_directory = os.getcwd()
+        project_directory = os.path.abspath(project_directory)
+
+        effective_timeout = timeout
+        env_timeout = os.getenv("MCP_FEEDBACK_TIMEOUT")
+        if env_timeout:
+            try:
+                env_timeout_value = int(env_timeout)
+                if env_timeout_value > 0:
+                    effective_timeout = env_timeout_value
+                    debug_log(
+                        f"使用環境變數 MCP_FEEDBACK_TIMEOUT 覆蓋超時時間: {effective_timeout} 秒"
+                    )
+            except ValueError:
+                debug_log(
+                    f"MCP_FEEDBACK_TIMEOUT 格式錯誤 ({env_timeout})，使用工具參數值: {timeout} 秒"
+                )
+
+        debug_log(f"回饋模式: web，超時時間: {effective_timeout} 秒")
+
+        result = await _launch_with_progress(
+            ctx, project_directory, summary, effective_timeout
+        )
+
+        if not result:
+            return [TextContent(type="text", text="用戶取消了回饋。")]
+
+        save_feedback_to_file(result)
+        feedback_items = _assemble_feedback_items(result)
+
+        debug_log(f"回饋收集完成，共 {len(feedback_items)} 個項目")
+        return feedback_items
+
+    except Exception as e:
+        error_id = ErrorHandler.log_error_with_context(
+            e,
+            context={"operation": "回饋收集", "project_dir": project_directory},
+            error_type=ErrorType.SYSTEM,
+        )
+        user_error_msg = ErrorHandler.format_user_error(e, include_technical=False)
+        debug_log(f"回饋收集錯誤 [錯誤ID: {error_id}]: {e!s}")
+        return [TextContent(type="text", text=user_error_msg)]
+
+
 @mcp.tool(output_schema=None)
 async def interactive_feedback(
     project_directory: Annotated[str, Field(description="專案目錄路徑")] = ".",
@@ -433,6 +494,7 @@ async def interactive_feedback(
         str, Field(description="AI 工作完成的摘要說明")
     ] = "我已完成了您請求的任務。",
     timeout: Annotated[int, Field(description="等待用戶回饋的超時時間（秒）")] = 600,
+    ctx: Context | None = None,
 ) -> list:
     """Interactive feedback collection tool for LLM agents.
 
@@ -456,66 +518,7 @@ async def interactive_feedback(
     Returns:
         list: List containing TextContent and MCPImage objects representing user feedback
     """
-    # 環境偵測
-    is_remote = is_remote_environment()
-    is_wsl = is_wsl_environment()
-
-    debug_log(f"環境偵測結果 - 遠端: {is_remote}, WSL: {is_wsl}")
-    debug_log("使用介面: Web UI")
-
-    try:
-        # 確保專案目錄存在
-        if not os.path.exists(project_directory):
-            project_directory = os.getcwd()
-        project_directory = os.path.abspath(project_directory)
-
-        # 超時時間優先級: 環境變數 MCP_FEEDBACK_TIMEOUT > 工具參數 timeout > 預設值 600
-        effective_timeout = timeout
-        env_timeout = os.getenv("MCP_FEEDBACK_TIMEOUT")
-        if env_timeout:
-            try:
-                env_timeout_value = int(env_timeout)
-                if env_timeout_value > 0:
-                    effective_timeout = env_timeout_value
-                    debug_log(
-                        f"使用環境變數 MCP_FEEDBACK_TIMEOUT 覆蓋超時時間: {effective_timeout} 秒"
-                    )
-            except ValueError:
-                debug_log(
-                    f"MCP_FEEDBACK_TIMEOUT 格式錯誤 ({env_timeout})，使用工具參數值: {timeout} 秒"
-                )
-
-        # 使用 Web 模式
-        debug_log(f"回饋模式: web，超時時間: {effective_timeout} 秒")
-
-        result = await launch_web_feedback_ui(project_directory, summary, effective_timeout)
-
-        # 處理取消情況
-        if not result:
-            return [TextContent(type="text", text="用戶取消了回饋。")]
-
-        # 儲存詳細結果
-        save_feedback_to_file(result)
-
-        # 建立回饋項目列表
-        feedback_items = _assemble_feedback_items(result)
-
-        debug_log(f"回饋收集完成，共 {len(feedback_items)} 個項目")
-        return feedback_items
-
-    except Exception as e:
-        # 使用統一錯誤處理，但不影響 JSON RPC 響應
-        error_id = ErrorHandler.log_error_with_context(
-            e,
-            context={"operation": "回饋收集", "project_dir": project_directory},
-            error_type=ErrorType.SYSTEM,
-        )
-
-        # 生成用戶友好的錯誤信息
-        user_error_msg = ErrorHandler.format_user_error(e, include_technical=False)
-        debug_log(f"回饋收集錯誤 [錯誤ID: {error_id}]: {e!s}")
-
-        return [TextContent(type="text", text=user_error_msg)]
+    return await _interactive_feedback_impl(project_directory, summary, timeout, ctx)
 
 
 _DEFAULT_REMINDER_TEXT = (
@@ -689,6 +692,45 @@ def _assemble_feedback_items(result: dict) -> list[TextContent]:
                 feedback_items.append(TextContent(type="text", text=context_refresh_text))
 
     return feedback_items
+
+
+async def _launch_with_progress(
+    ctx: Context | None,
+    project_dir: str,
+    summary: str,
+    timeout: int,
+) -> dict:
+    """Launch web feedback UI with periodic progress notifications.
+
+    Sends MCP progress notifications at PROGRESS_INTERVAL_SECONDS intervals
+    to prevent Cursor's idle timeout (120s) from killing the tool call.
+    """
+    if ctx is None:
+        return await launch_web_feedback_ui(project_dir, summary, timeout)
+
+    feedback_task = asyncio.create_task(
+        launch_web_feedback_ui(project_dir, summary, timeout)
+    )
+
+    elapsed = 0
+    interval = PROGRESS_INTERVAL_SECONDS
+
+    while not feedback_task.done():
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(feedback_task), timeout=interval
+            )
+        except TimeoutError:
+            elapsed += interval
+            try:
+                await ctx.report_progress(
+                    progress=elapsed, total=timeout
+                )
+                debug_log(f"已發送 progress heartbeat ({elapsed}/{timeout}s)")
+            except Exception as e:
+                debug_log(f"發送 progress notification 失敗: {e}")
+
+    return await feedback_task
 
 
 async def launch_web_feedback_ui(project_dir: str, summary: str, timeout: int) -> dict:

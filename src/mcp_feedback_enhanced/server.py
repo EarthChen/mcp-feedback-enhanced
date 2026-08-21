@@ -358,6 +358,34 @@ def create_feedback_text(feedback_data: dict) -> str:
         text_parts.append(
             "\n💡 注意：如果 AI 助手無法顯示圖片，圖片數據已包含在上述 Base64 信息中。"
         )
+    # 技能調用（G3：直接將 SKILL.md 內容注入，保證 agent 執行，不依賴 Cursor 的 / UI）
+    skills = feedback_data.get("skills")
+    if skills:
+        skill_blocks = []
+        for skill in skills:
+            if not isinstance(skill, dict):
+                continue
+            skill_path = skill.get("path", "")
+            skill_name = skill.get("name", "")
+            if not skill_path or not os.path.isfile(skill_path):
+                continue
+            try:
+                with open(skill_path, encoding="utf-8") as sf:
+                    content = sf.read()
+            except OSError:
+                continue
+            if not content.strip():
+                continue
+            block = f"=== Skill: {skill_name} ===\nPath: {skill_path}"
+            args = skill.get("args")
+            if args:
+                block += f"\nArguments: {args}"
+            block += f"\n\n{content}"
+            skill_blocks.append(block)
+        if skill_blocks:
+            text_parts.append("\n\n".join(skill_blocks))
+
+
 
     return "\n\n".join(text_parts) if text_parts else "用戶未提供任何回饋內容。"
 

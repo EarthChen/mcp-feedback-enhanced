@@ -288,6 +288,7 @@ class WebFeedbackSession:
         images: list[dict[str, Any]],
         settings: dict[str, Any] | None = None,
         clear_context: bool = False,
+        skills: list[dict[str, Any]] | None = None,
     ):
         """將回饋加入隊列（agent 返回後批量處理）"""
         self.feedback_queue.append({
@@ -295,6 +296,7 @@ class WebFeedbackSession:
             "images": self._process_images(images),
             "settings": settings or {},
             "clear_context": clear_context,
+            "skills": skills or [],
         })
         self.last_activity = time.time()
         if self.websocket:
@@ -533,6 +535,7 @@ class WebFeedbackSession:
                     "images": self.images,
                     "settings": self.settings,
                     "clear_context": getattr(self, "clear_context", False),
+                    "skills": getattr(self, "selected_skills", []),
                 }
             # 超時了，立即清理資源
             debug_log(
@@ -555,6 +558,7 @@ class WebFeedbackSession:
         images: list[dict[str, Any]],
         settings: dict[str, Any] | None = None,
         clear_context: bool = False,
+        skills: list[dict[str, Any]] | None = None,
     ):
         """
         提交回饋和圖片
@@ -564,11 +568,13 @@ class WebFeedbackSession:
             images: 圖片列表
             settings: 圖片設定（可選）
             clear_context: 是否要求 Agent 清除上下文（新任務模式）
+            skills: 用戶選擇的技能（G3：回傳 path+content 由 agent 執行）
         """
         self.feedback_result = feedback
         # 先設置設定，再處理圖片（因為處理圖片時需要用到設定）
         self.settings = settings or {}
         self.clear_context = clear_context
+        self.selected_skills = skills or []
         self.images = self._process_images(images)
 
         # 進入下一步：等待中 → 已提交反饋

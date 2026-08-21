@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from ... import __version__
 from ...debug import web_debug_log as debug_log
+from ...skills import scan_skill_directories
 from ..constants import get_message_code as get_msg_code
 
 
@@ -134,6 +135,17 @@ def setup_routes(manager: "WebUIManager"):
 
         debug_log(f"Web 翻譯 API 返回 {len(translations)} 種語言的數據")
         return JSONResponse(content=translations)
+
+    @manager.app.get("/api/skills")
+    async def get_skills():
+        """列出可用的 agent skills（用於反饋 UI 的 / 自動補全）"""
+        try:
+            skills = scan_skill_directories()
+        except Exception as e:
+            debug_log(f"掃描 skills 失敗: {e}")
+            skills = []
+        return JSONResponse(content=skills)
+
 
     @manager.app.get("/api/session-status")
     async def get_session_status(request: Request):
@@ -677,11 +689,12 @@ async def handle_websocket_message(manager: "WebUIManager", session, data: dict)
         settings = data.get("settings", {})
         clear_context = data.get("clear_context", False)
         queued = data.get("queued", False)
+        skills = data.get("skills", [])
 
         if queued and session.status.value == "feedback_submitted":
-            await session.enqueue_feedback(feedback, images, settings, clear_context)
+            await session.enqueue_feedback(feedback, images, settings, clear_context, skills=skills)
         else:
-            await session.submit_feedback(feedback, images, settings, clear_context=clear_context)
+            await session.submit_feedback(feedback, images, settings, clear_context=clear_context, skills=skills)
 
     elif message_type == "drain_queue":
         # 將前端隊列項目加入後端隊列

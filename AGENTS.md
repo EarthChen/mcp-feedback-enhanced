@@ -29,7 +29,7 @@ uv run twine upload dist/*   # 发布到 PyPI（读取 ~/.pypirc）
 make build-desktop-release   # 构建桌面二进制（需 Rust + tauri-cli）
 ```
 
-> 注：`uv publish` 不读取 `~/.pypirc` 凭证，本地发布请用 `twine upload`（已验证）。
+> 注：`uv publish` 不读取 `~/.pypirc` 凭证，本地发布请用 `twine upload`（已验证）。完整发版流程（TAG 自动发版）见 `docs/RELEASE.md`。
 
 ## 架构
 

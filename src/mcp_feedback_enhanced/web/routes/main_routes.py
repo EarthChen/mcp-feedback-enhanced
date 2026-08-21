@@ -140,7 +140,9 @@ def setup_routes(manager: "WebUIManager"):
     async def get_skills():
         """列出可用的 agent skills（用於反饋 UI 的 / 自動補全）"""
         try:
-            skills = scan_skill_directories()
+            session = manager.get_current_session()
+            project_dir = session.project_directory if session else None
+            skills = scan_skill_directories(project_dir)
         except Exception as e:
             debug_log(f"掃描 skills 失敗: {e}")
             skills = []

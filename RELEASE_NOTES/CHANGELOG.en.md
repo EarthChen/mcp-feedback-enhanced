@@ -2,6 +2,12 @@
 
 This document records all version updates for **MCP Feedback Enhanced**.
 
+## [v2.10.1] - 2026-08-21 - Feedback Routing & Client Submission Fix
+
+### 🐛 Bug Fixes
+- 🔧 **WebSocket Session Routing**: Inbound WebSocket messages are now resolved to the current session owning the connection, fixing "first feedback ignored, only works after page refresh" when a persistent tab's connection is transferred to a new MCP call. Added regression test.
+- 🔧 **Pending Feedback Flush**: Client now flushes queued feedback when the connection becomes ready (on `connection_established`), fixing silent loss of feedback submitted during the connection-ready window. Removed unused `WebSocketManager.pendingSubmission`.
+
 ## [v2.5.6] - 2025-06-21 - Settings Save Mechanism Optimization & Interface Enhancement
 
 ### 🌟 Version Highlights

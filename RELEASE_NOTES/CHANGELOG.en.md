@@ -2,18 +2,27 @@
 
 This document records all version updates for **MCP Feedback Enhanced**.
 
+## [v2.11.0] - 2026-08-21 - Agent Skill Support
+
+### ✨ New Features
+
+- 🤖 **Agent Skill Trigger**: Agent skills are now triggered by injecting `SKILL.md` content into the feedback, enabling skill-aware interactions.
+
 ## [v2.10.1] - 2026-08-21 - Feedback Routing & Client Submission Fix
 
 ### 🐛 Bug Fixes
+
 - 🔧 **WebSocket Session Routing**: Inbound WebSocket messages are now resolved to the current session owning the connection, fixing "first feedback ignored, only works after page refresh" when a persistent tab's connection is transferred to a new MCP call. Added regression test.
 - 🔧 **Pending Feedback Flush**: Client now flushes queued feedback when the connection becomes ready (on `connection_established`), fixing silent loss of feedback submitted during the connection-ready window. Removed unused `WebSocketManager.pendingSubmission`.
 
 ## [v2.5.6] - 2025-06-21 - Settings Save Mechanism Optimization & Interface Enhancement
 
 ### 🌟 Version Highlights
+
 Refactored settings save mechanism to resolve language switching save issues, and added visual icons to settings interface for enhanced user experience.
 
 ### 🚀 Improvements
+
 - 🔨 **Settings Save Mechanism Refactoring**: Completely removed localStorage dependency, switched to unified FastAPI backend save mechanism
   - Resolved settings not saving correctly during language switching
   - Removed debounce mechanism to ensure immediate settings save
@@ -23,6 +32,7 @@ Refactored settings save mechanism to resolve language switching save issues, an
   - More intuitive feature identification
 
 ### 🛠️ Technical Improvements
+
 - 📊 **Unified Storage Architecture**: All settings now use JSON file storage for cross-environment consistency
 - 🔧 **Code Simplification**: Removed complex localStorage-related code, reducing maintenance costs
 
@@ -31,9 +41,11 @@ Refactored settings save mechanism to resolve language switching save issues, an
 ## [v2.5.5] - 2025-06-21 - SSH Remote Development Support & Stability Enhancement
 
 ### 🌟 Version Highlights
+
 Added SSH remote development environment support, resolving Web UI access issues in remote development scenarios. Enhanced macOS compilation support and desktop application stability for improved developer experience.
 
 ### ✨ New Features
+
 - 🌐 **SSH Remote Development Support**: Added `MCP_WEB_HOST` environment variable for configuring web server host binding
   - Defaults to `127.0.0.1` for security
   - Can be set to `0.0.0.0` to allow remote access
@@ -44,23 +56,27 @@ Added SSH remote development environment support, resolving Web UI access issues
   - Follows PyO3 official recommended best practices
 
 ### 🚀 Improvements
+
 - 📝 **Tool Documentation Optimization**: Moved LLM instructions to tool docstring for improved token efficiency
 - 🎨 **Simplified User Configuration**: Removed complex Cursor rules configuration
 - 📊 **Enhanced AI Work Summary Markdown**: Improved Markdown rendering effects and compatibility
 - 🔄 **Session History Process Optimization**: Enhanced session saving and management mechanisms
 
 ### 🐛 Bug Fixes
+
 - 🖥️ **Desktop Application MCP Protocol Fix**: Fixed MCP protocol communication pollution issues in desktop mode
 - 📦 **Packaging Process Fix**: Fixed multi-platform desktop application packaging and publishing issues
 - 🔧 **Release Process Optimization**: Improved stability of automated release workflows
 - 🔥 **Removed ESC Shortcut**: Removed ESC shortcut functionality that could cause accidental closure
 
 ### 🛠️ Technical Improvements
+
 - 🏗️ **Enhanced Build System**: Improved cross-platform compilation configuration and dependency management
 - 📚 **Documentation Automation**: Enhanced tool self-documentation following FastMCP best practices
 - 🔍 **Enhanced Debugging Features**: Added more detailed debugging information and error handling
 
 ### 📋 Usage Instructions
+
 - **SSH Remote Development**: Set `"MCP_WEB_HOST": "0.0.0.0"` in MCP configuration to allow remote access
 - **Local Development**: Keep default `"MCP_WEB_HOST": "127.0.0.1"` for security
 - **macOS Development**: New compilation configuration will take effect automatically without additional setup
@@ -70,9 +86,11 @@ Added SSH remote development environment support, resolving Web UI access issues
 ## [v2.5.0] - 2025-06-15 - Desktop Application & Performance Optimization
 
 ### 🌟 Version Highlights
+
 Introducing cross-platform desktop application supporting Windows, macOS, and Linux. Significant performance improvements with debounce/throttle mechanisms and enhanced system stability.
 
 ### ✨ New Features
+
 - 🖥️ **Desktop Application**: Native cross-platform desktop app based on Tauri framework, supporting Windows x64, macOS (Intel/Apple Silicon), Linux x64
 - 📊 **Server-side Session History Storage**: Session records migrated from localStorage to server-side local file storage for improved data consistency and reliability
 - 🔧 **Multi-platform Build Support**: Complete CI/CD pipeline supporting automated multi-platform desktop application builds
@@ -80,6 +98,7 @@ Introducing cross-platform desktop application supporting Windows, macOS, and Li
 - 📋 **AI Work Summary Markdown Display**: Support for Markdown syntax rendering including headers, bold text, code blocks, lists, links and other formats
 
 ### 🚀 Improvements
+
 - ⚡ **Significant Performance Enhancement**: Introduced debounce/throttle mechanisms to reduce unnecessary rendering and network requests
 - 🌐 **Network Connection Stability**: Improved WebSocket reconnection mechanism with network status detection and intelligent reconnection
 - 🎨 **UI Rendering Optimization**: Optimized rendering performance for session management, statistics, and status indicators
@@ -87,11 +106,13 @@ Introducing cross-platform desktop application supporting Windows, macOS, and Li
 - 🔄 **Enhanced Modularity**: Optimized JavaScript module structure with better logging management
 
 ### 🐛 Bug Fixes
+
 - 🌐 **Network Reconnection Improvements**: Optimized reconnection algorithm with exponential backoff strategy and random jitter
 - 🖥️ **Desktop Mode Adaptation**: Fixed browser auto-launch issues in desktop mode
 - 📊 **Rendering Performance Fixes**: Resolved duplicate rendering and unnecessary state update issues
 
 ### 🛠️ Technical Improvements
+
 - 🏗️ **Build Process Optimization**: Added Makefile desktop application build commands supporting debug/release modes
 - 📦 **Dependency Management**: Integrated Rust toolchain supporting cross-platform compilation and packaging
 - 🔍 **Enhanced Development Tools**: Added environment checks, build validation, and cleanup tools
@@ -99,6 +120,7 @@ Introducing cross-platform desktop application supporting Windows, macOS, and Li
 - 🔒 **Security Enhancement**: Introduced DOMPurify for XSS protection ensuring content security
 
 ### 📋 Usage Instructions
+
 - **Desktop Mode**: Set `"MCP_DESKTOP_MODE": "true"` in MCP configuration (refer to `examples/mcp-config-desktop.json`)
 - **Web Mode**: Set `"MCP_DESKTOP_MODE": "false"` in MCP configuration (default, refer to `examples/mcp-config-web.json`)
 - **Test Desktop Mode**: `uvx mcp-feedback-enhanced@latest test --desktop`
@@ -109,20 +131,24 @@ Introducing cross-platform desktop application supporting Windows, macOS, and Li
 ## [v2.4.3] - 2025-06-14 - Session Management Refactoring & Audio Notifications
 
 ### 🌟 Version Highlights
+
 Migrated session management from sidebar to dedicated tab, resolving browser compatibility issues. Added audio notification system with custom audio support.
 
 ### ✨ New Features
+
 - 🔊 **Audio Notification System**: Play audio alerts for session updates, supports built-in and custom audio uploads
 - 📚 **Session History Management**: Local session record storage with export and cleanup functionality
 - 💾 **Input Height Memory**: Automatically save and restore textarea input height settings
 - 📋 **One-Click Copy**: Project path and session ID support click-to-copy
 
 ### 🚀 Improvements
+
 - 📋 **Session Management Refactoring**: Migrated from sidebar to "Session Management" tab, fixing button click issues in small windows
 - 🎨 **Interface Layout Optimization**: AI summary auto-expansion, submit button repositioning, removed redundant descriptions
 - 🌐 **Multilingual Enhancement**: Added tooltip and button multilingual support
 
 ### 🐛 Bug Fixes
+
 - Fixed current session details button unresponsive issue
 - Fixed session details modal close delay issue
 - Fixed audio notification language initialization issue
@@ -133,15 +159,18 @@ Migrated session management from sidebar to dedicated tab, resolving browser com
 ## [v2.4.2] - Web-Only Architecture Refactoring & Smart Feature Enhancement
 
 ### 🌟 Version Highlights
+
 This version underwent major architectural refactoring, **completely removing PyQt6 GUI dependencies** and transitioning to a pure Web UI architecture, dramatically simplifying deployment and maintenance. Additionally, multiple smart features were added, including prompt management, auto-submit, session management, and more, comprehensively enhancing user experience and work efficiency.
 
 ### 🔄 Major Architectural Changes
+
 - 🏗️ **Complete PyQt6 GUI Removal**: Thoroughly removed desktop application dependencies, simplifying installation and deployment processes
 - 🌐 **Pure Web UI Architecture**: Unified use of Web interface, supporting all platforms and environments
 - 📦 **Dramatically Simplified Dependencies**: Removed PyQt6, related GUI libraries and other heavy dependencies, significantly reducing installation package size
 - 🚀 **Simpler Deployment**: No need to consider GUI environment configuration, suitable for all development environments
 
 ### ✨ Brand New Features
+
 - 📝 **Smart Prompt Management System**:
   - CRUD operations for common prompts (Create, Edit, Delete, Use)
   - Usage frequency statistics and intelligent sorting
@@ -165,6 +194,7 @@ This version underwent major architectural refactoring, **completely removing Py
 - ⌨️ **Enhanced Shortcuts**: Added Ctrl+I quick focus input box feature (Thanks @penn201500)
 
 ### 🚀 Feature Improvements
+
 - 🎨 **Comprehensive UI/UX Optimization**:
   - Added left session management panel with collapse/expand support
   - Top connection status bar with real-time system status display
@@ -186,6 +216,7 @@ This version underwent major architectural refactoring, **completely removing Py
   - Enhanced accessibility and usability
 
 ### 🐛 Bug Fixes
+
 - 🔧 **Session Management Fixes**:
   - Fixed session statistics information not updating correctly
   - Fixed session count calculation errors
@@ -202,6 +233,7 @@ This version underwent major architectural refactoring, **completely removing Py
   - Optimized module loading order and dependencies
 
 ### 🛠️ Technical Improvements
+
 - 📦 **Modular Architecture**:
   - Complete JavaScript code modular refactoring
   - Adopted ES6+ syntax and modern development patterns
@@ -212,6 +244,7 @@ This version underwent major architectural refactoring, **completely removing Py
   - Reduced memory usage and CPU load
 
 ### 📚 Documentation Updates
+
 - 📖 **Architecture Documentation Update**: Updated system architecture description to reflect Web-Only design
 - 🔧 **Installation Guide Simplification**: Removed GUI-related installation steps and dependency descriptions
 - 🖼️ **Screenshot Updates**: Updated all interface screenshots to showcase new Web UI design
@@ -222,15 +255,18 @@ This version underwent major architectural refactoring, **completely removing Py
 ## [v2.3.0] - System Stability & Resource Management Enhancement
 
 ### 🌟 Highlights
+
 This version focuses on improving system stability and user experience, particularly solving the browser launch issue in Cursor SSH Remote environments.
 
 ### ✨ New Features
+
 - 🌐 **SSH Remote Environment Support**: Solved Cursor SSH Remote browser launch issues with clear usage guidance
 - 🛡️ **Error Message Improvements**: Provides more user-friendly error messages and solution suggestions when errors occur
 - 🧹 **Auto-cleanup Features**: Automatically cleans temporary files and expired sessions to keep the system tidy
 - 📊 **Memory Monitoring**: Monitors memory usage to prevent system resource shortage
 
 ### 🚀 Improvements
+
 - 💾 **Resource Management Optimization**: Better system resource management for improved performance
 - 🔧 **Enhanced Error Handling**: Provides clearer explanations and solutions when problems occur
 - 🌐 **Connection Stability**: Improved Web UI connection stability
@@ -238,6 +274,7 @@ This version focuses on improving system stability and user experience, particul
 - 🎯 **Auto-focus Input Box**: Automatically focus on feedback input box when window opens, improving user experience (Thanks @penn201500)
 
 ### 🐛 Bug Fixes
+
 - 🌐 **Connection Issues**: Fixed WebSocket connection related problems
 - 🔄 **Session Management**: Fixed session state tracking issues
 - 🖼️ **Image Processing**: Fixed event handling issues during image upload
@@ -247,11 +284,13 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.2.5] - WSL Environment Support & Cross-Platform Enhancement
 
 ### ✨ New Features
+
 - 🐧 **WSL Environment Detection**: Automatically identifies WSL environments and provides specialized support logic
 - 🌐 **Smart Browser Launching**: Automatically invokes Windows browser in WSL environments with multiple launch methods
 - 🔧 **Cross-Platform Testing Enhancement**: Test functionality integrates WSL detection for improved test coverage
 
 ### 🚀 Improvements
+
 - 🎯 **Environment Detection Optimization**: Improved remote environment detection logic, WSL no longer misidentified as remote environment
 - 📊 **System Information Enhancement**: System information tool now displays WSL environment status
 - 🧪 **Testing Experience Improvement**: Test mode automatically attempts browser launching for better testing experience
@@ -261,6 +300,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.2.4] - GUI Experience Optimization & Bug Fixes
 
 ### 🐛 Bug Fixes
+
 - 🖼️ **Image Duplicate Paste Fix**: Fixed the issue where Ctrl+V image pasting in GUI would create duplicate images
 - 🌐 **Localization Switch Fix**: Fixed image settings area text not translating correctly when switching languages
 - 📝 **Font Readability Improvement**: Adjusted font sizes in image settings area for better readability
@@ -270,6 +310,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.2.3] - Timeout Control & Image Settings Enhancement
 
 ### ✨ New Features
+
 - ⏰ **User Timeout Control**: Added customizable timeout settings with flexible range from 30 seconds to 2 hours
 - ⏱️ **Countdown Timer**: Real-time countdown timer display at the top of the interface for visual time reminders
 - 🖼️ **Image Size Limits**: Added image upload size limit settings (unlimited/1MB/3MB/5MB)
@@ -277,11 +318,13 @@ This version focuses on improving system stability and user experience, particul
 - 🧹 **UV Cache Management Tool**: Added `cleanup_cache.py` script to help manage and clean UV cache space
 
 ### 🚀 Improvements
+
 - 📚 **Documentation Structure Optimization**: Reorganized documentation directory structure, moved images to `docs/{language}/images/` paths
 - 📖 **Cache Management Guide**: Added detailed UV Cache management guide with automated cleanup solutions
 - 🎯 **Smart Compatibility Hints**: Automatically display Base64 compatibility mode suggestions when image upload fails
 
 ### 🐛 Bug Fixes
+
 - 🛡️ **Timeout Handling Optimization**: Improved coordination between user-defined timeout and MCP system timeout
 - 🖥️ **Interface Auto-close**: Fixed interface auto-close and resource cleanup logic after timeout
 - 📱 **Responsive Layout**: Optimized timeout control component display on small screen devices
@@ -291,6 +334,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.2.2] - Timeout Auto-cleanup Fix
 
 ### 🐛 Bug Fixes
+
 - 🔄 **Timeout Auto-cleanup**: Fixed GUI/Web UI not automatically closing after MCP session timeout (default 600 seconds)
 - 🛡️ **Resource Management Optimization**: Improved timeout handling mechanism to ensure proper cleanup and closure of all UI resources on timeout
 - ⚡ **Enhanced Timeout Detection**: Strengthened timeout detection logic to correctly handle timeout events in various scenarios
@@ -300,11 +344,13 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.2.1] - Window Optimization & Unified Settings Interface
 
 ### 🚀 Improvements
+
 - 🖥️ **Window Size Constraint Removal**: Removed GUI main window minimum size limit from 1000×800 to 400×300
 - 💾 **Real-time Window State Saving**: Implemented real-time saving mechanism for window size and position changes
 - ⚙️ **Unified Settings Interface Optimization**: Improved GUI settings page configuration saving logic to avoid setting conflicts
 
 ### 🐛 Bug Fixes
+
 - 🔧 **Window Size Constraint**: Fixed GUI window unable to resize to small dimensions issue
 - 🛡️ **Setting Conflicts**: Fixed potential configuration conflicts during settings save operations
 
@@ -313,13 +359,16 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.2.0] - Layout & Settings UI Enhancements
 
 ### ✨ New Features
+
 - 🎨 **Horizontal Layout Mode**: GUI & Web UI combined mode adds left-right layout option for summary and feedback
 
 ### 🚀 Improvements
+
 - 🎨 **Improved Settings Interface**: Optimized the settings page for both GUI and Web UI
 - ⌨️ **GUI Shortcut Enhancement**: Submit feedback shortcut now fully supports numeric keypad Enter key
 
 ### 🐛 Bug Fixes
+
 - 🔧 **Image Duplication Fix**: Resolved Web UI image pasting duplication issue
 
 ---
@@ -327,6 +376,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.1.1] - Window Positioning Optimization
 
 ### ✨ New Features
+
 - 🖥️ **Smart Window Positioning**: Added "Always show window at primary screen center" setting option
 - 🌐 **Multi-Monitor Support**: Perfect solution for complex multi-monitor setups like T-shaped screen arrangements
 - 💾 **Position Memory**: Auto-save and restore window position with intelligent visibility detection
@@ -336,11 +386,13 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.1.0] - Complete Refactored Version
 
 ### 🎨 Major Refactoring
+
 - 🏗️ **Complete Refactoring**: GUI and Web UI adopt modular architecture
 - 📁 **Centralized Management**: Reorganized folder structure, improved maintainability
 - 🖥️ **Interface Optimization**: Modern design and improved user experience
 
 ### ✨ New Features
+
 - 🍎 **macOS Interface Optimization**: Specialized improvements for macOS user experience
 - ⚙️ **Feature Enhancement**: New settings options and auto-close page functionality
 - ℹ️ **About Page**: Added about page with version info, project links, and acknowledgments
@@ -350,6 +402,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.0.14] - Shortcut & Image Feature Enhancement
 
 ### 🚀 Improvements
+
 - ⌨️ **Enhanced Shortcuts**: Ctrl+Enter supports numeric keypad
 - 🖼️ **Smart Image Pasting**: Ctrl+V directly pastes clipboard images
 
@@ -358,6 +411,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.0.9] - Multi-language Architecture Refactor
 
 ### 🔄 Refactoring
+
 - 🌏 **Multi-language Architecture Refactor**: Support for dynamic loading
 - 📁 **Modularized Language Files**: Modular organization of language files
 
@@ -366,6 +420,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.0.3] - Encoding Issues Fix
 
 ### 🐛 Critical Fixes
+
 - 🛡️ **Complete Chinese Character Encoding Fix**: Resolved all Chinese display related issues
 - 🔧 **JSON Parsing Error Fix**: Fixed data parsing errors
 
@@ -374,6 +429,7 @@ This version focuses on improving system stability and user experience, particul
 ## [v2.0.0] - Web UI Support
 
 ### 🌟 Major Features
+
 - ✅ **Added Web UI Support**: Support for remote environments
 - ✅ **Auto Environment Detection**: Automatically choose appropriate interface
 - ✅ **WebSocket Real-time Communication**: Real-time bidirectional communication
@@ -383,7 +439,7 @@ This version focuses on improving system stability and user experience, particul
 ## Legend
 
 | Icon | Meaning |
-|------|---------|
+| ------ | --------- |
 | 🌟 | Version Highlights |
 | ✨ | New Features |
 | 🚀 | Improvements |

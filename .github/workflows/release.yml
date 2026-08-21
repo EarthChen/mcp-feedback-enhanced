@@ -52,12 +52,11 @@ jobs:
       - name: 校验包
         run: uv run twine check dist/*
 
-      - name: 发布到 PyPI
+      - name: 发布到 PyPI（Trusted Publishing / OIDC，免 token）
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          # 若改用 Trusted Publishing（OIDC）：删除上面 password 行，并在 PyPI 配置本仓库为可信发布者
-
+        # 使用 GitHub OIDC 可信发布，无需 PYPI_API_TOKEN。
+        # 前置配置：在 PyPI 项目 mcp-feedback-pro 的「管理 → 发布」中登记本仓库为可信发布者
+        # （Owner: EarthChen / Repository: mcp-feedback-enhanced / Workflow: release.yml / 环境留空）。
       - name: 校验 CHANGELOG（仅警告）
         run: |
           TAG="v${GITHUB_REF_NAME#v}"

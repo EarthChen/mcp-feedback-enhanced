@@ -103,7 +103,7 @@ pip install uv
   "mcpServers": {
     "mcp-feedback-enhanced": {
       "command": "uvx",
-      "args": ["mcp-feedback-enhanced@latest"],
+      "args": ["mcp-feedback-pro@latest"],
       "timeout": 600,
       "autoApprove": ["interactive_feedback"]
     }
@@ -117,7 +117,7 @@ pip install uv
   "mcpServers": {
     "mcp-feedback-enhanced": {
       "command": "uvx",
-      "args": ["mcp-feedback-enhanced@latest"],
+      "args": ["mcp-feedback-pro@latest"],
       "timeout": 600,
       "env": {
         "MCP_DEBUG": "false",
@@ -137,7 +137,7 @@ pip install uv
   "mcpServers": {
     "mcp-feedback-enhanced": {
       "command": "uvx",
-      "args": ["mcp-feedback-enhanced@latest"],
+      "args": ["mcp-feedback-pro@latest"],
       "timeout": 600,
       "env": {
         "MCP_DESKTOP_MODE": "true",
@@ -195,19 +195,19 @@ pip install uv
 ### 測試選項
 ```bash
 # 版本查詢
-uvx mcp-feedback-enhanced@latest version       # 檢查版本
+uvx mcp-feedback-pro@latest version       # 檢查版本
 
 # 介面測試
-uvx mcp-feedback-enhanced@latest test --web    # 測試 Web UI (自動持續運行)
-uvx mcp-feedback-enhanced@latest test --desktop # 測試桌面應用程式 (v2.5.0 新功能)
+uvx mcp-feedback-pro@latest test --web    # 測試 Web UI (自動持續運行)
+uvx mcp-feedback-pro@latest test --desktop # 測試桌面應用程式 (v2.5.0 新功能)
 
 # 調試模式
-MCP_DEBUG=true uvx mcp-feedback-enhanced@latest test
+MCP_DEBUG=true uvx mcp-feedback-pro@latest test
 
 # 指定語言測試
-MCP_LANGUAGE=en uvx mcp-feedback-enhanced@latest test --web    # 強制使用英文介面
-MCP_LANGUAGE=zh-TW uvx mcp-feedback-enhanced@latest test --web  # 強制使用繁體中文
-MCP_LANGUAGE=zh-CN uvx mcp-feedback-enhanced@latest test --web  # 強制使用簡體中文
+MCP_LANGUAGE=en uvx mcp-feedback-pro@latest test --web    # 強制使用英文介面
+MCP_LANGUAGE=zh-TW uvx mcp-feedback-pro@latest test --web  # 強制使用繁體中文
+MCP_LANGUAGE=zh-CN uvx mcp-feedback-pro@latest test --web  # 強制使用簡體中文
 ```
 
 ### 開發者安裝
@@ -278,7 +278,7 @@ A: 提供兩種解決方案：
   "mcpServers": {
     "mcp-feedback-enhanced": {
       "command": "uvx",
-      "args": ["mcp-feedback-enhanced@latest"],
+      "args": ["mcp-feedback-pro@latest"],
       "timeout": 600,
       "env": {
         "MCP_WEB_HOST": "0.0.0.0",
@@ -317,7 +317,7 @@ A: v2.5.0 新增跨平台桌面應用程式支援。在 MCP 配置中設定 `"MC
   "mcpServers": {
     "mcp-feedback-enhanced": {
       "command": "uvx",
-      "args": ["mcp-feedback-enhanced@latest"],
+      "args": ["mcp-feedback-pro@latest"],
       "timeout": 600,
       "env": {
         "MCP_DESKTOP_MODE": "true",
@@ -338,7 +338,7 @@ A: v2.4.0 版本已完全移除 PyQt6 GUI 依賴。如需使用舊版 GUI，請�
 A: 調試輸出干擾。設置 `MCP_DEBUG=false` 或移除該環境變數。
 
 **Q: 中文字符亂碼**
-A: 已在 v2.0.3 修復。更新到最新版本：`uvx mcp-feedback-enhanced@latest`
+A: 已在 v2.0.3 修復。更新到最新版本：`uvx mcp-feedback-pro@latest`
 
 **Q: 多螢幕環境下視窗消失或定位錯誤**
 A: 已在 v2.1.1 修復。進入「⚙️ 設定」分頁，勾選「總是在主螢幕中心顯示視窗」即可解決。特別適用於 T 字型螢幕排列等複雜多螢幕配置。

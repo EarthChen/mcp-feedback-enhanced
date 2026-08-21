@@ -330,6 +330,7 @@ def setup_routes(manager: "WebUIManager"):
 
         session.websocket = websocket
         debug_log(f"WebSocket 連接建立: 會話 {session.session_id}")
+        manager._register_active_tab(session, websocket)
 
         # 發送連接成功消息
         try:
@@ -341,8 +342,8 @@ def setup_routes(manager: "WebUIManager"):
             )
 
             # 檢查是否有待發送的會話更新（僅當標記屬於本 session 時發送，避免跨 session 劫持）
-            pending_session_id = getattr(manager, "_pending_session_update", None)
-            if pending_session_id == session.session_id:
+            pending = manager._pending_session_updates
+            if session.session_id in pending:
                 debug_log("檢測到待發送的會話更新，準備發送通知")
                 await websocket.send_json(
                     {
@@ -356,7 +357,7 @@ def setup_routes(manager: "WebUIManager"):
                         },
                     }
                 )
-                manager._pending_session_update = None
+                pending.discard(session.session_id)
                 debug_log("✅ 已發送會話更新通知到前端")
             else:
                 # 發送當前會話狀態
@@ -398,6 +399,7 @@ def setup_routes(manager: "WebUIManager"):
             owner = manager.get_session_owning_websocket(websocket)
             if owner and owner.websocket == websocket:
                 owner.websocket = None
+                manager._unregister_active_tab(websocket)
                 debug_log("已清理會話中的 WebSocket 連接")
 
     @manager.app.post("/api/save-settings")
@@ -736,6 +738,7 @@ async def handle_websocket_message(manager: "WebUIManager", session, data: dict)
         # 更新心跳時間
         session.last_heartbeat = time.time()
         session.last_activity = time.time()
+        manager._touch_active_tab(session.websocket)
 
         # 發送心跳回應
         if session.websocket:

@@ -145,7 +145,7 @@ class WebUIManager:
         self.global_active_tabs: dict[str, dict] = {}
 
         # 會話更新通知標記：存儲目標 session_id（None = 無待通知）
-        self._pending_session_update: str | None = None
+        self._pending_session_updates: set[str] = set()
 
         # 會話清理統計
         self.cleanup_stats: dict[str, Any] = {
@@ -374,8 +374,11 @@ class WebUIManager:
                 old_session = self.sessions.get(old_web_session_id)
                 if old_session is None:
                     debug_log(f"MCP 會話 {mcp_session_id} 的舊 Web 會話已被清理")
-        else:
-            old_session = self.current_session
+        # 多會話隔離：若無法經 mcp_session_id 命中舊會話，但當前僅有一個活躍標籤頁
+        # （單 session 場景，例如 mcp_session_id 跨呼叫不穩定），則復用該標籤頁所屬會話，
+        # 避免每輪開新視窗；多 session 並發（多個活躍標籤頁）不猜測，維持各自獨立，避免串台。
+        if old_session is None:
+            old_session = self._find_single_active_session()
 
         # 保存舊會話的引用和 WebSocket 連接
         old_websocket = None
@@ -444,7 +447,7 @@ class WebUIManager:
             debug_log("已將舊 WebSocket 連接轉移到新會話")
         else:
             # 沒有舊連接：記錄待通知的 session_id（多會話隔離：僅該 session 的連接會收到通知）
-            self._pending_session_update = session_id
+            self._pending_session_updates.add(session_id)
             debug_log(f"沒有舊 WebSocket 連接，設置待更新標記: {session_id}")
 
         return session_id
@@ -525,6 +528,41 @@ class WebUIManager:
                 self.global_active_tabs[tab_id] = tab_info
 
         debug_log(f"合併標籤頁狀態，全局活躍標籤頁數量: {len(self.global_active_tabs)}")
+
+    def _register_active_tab(self, session: "WebFeedbackSession", websocket) -> None:
+        """登記一個活躍標籤頁到全域註冊表（建立會話↔標籤頁權威對應）。
+
+        連接建立與心跳時呼叫；供 create_session 復用判斷與未來精確路由使用。
+        """
+        tab_id = str(id(websocket))
+        entry = {
+            "tab_id": tab_id,
+            "websocket": websocket,
+            "session_id": session.session_id,
+            "last_seen": time.time(),
+        }
+        self.global_active_tabs[tab_id] = entry
+        session.active_tabs[tab_id] = entry
+
+    def _touch_active_tab(self, websocket) -> None:
+        """更新標籤頁最後活躍時間（心跳時呼叫）。"""
+        entry = self.global_active_tabs.get(str(id(websocket)))
+        if entry is not None:
+            entry["last_seen"] = time.time()
+
+    def _unregister_active_tab(self, websocket) -> None:
+        """移除標籤頁登記（斷線時呼叫）。"""
+        self.global_active_tabs.pop(str(id(websocket)), None)
+
+    def _find_single_active_session(self) -> "WebFeedbackSession | None":
+        """當前僅有一個活躍標籤頁時，回傳其所屬會話；否則回傳 None（不猜測）。"""
+        active = [
+            t for t in self.global_active_tabs.values()
+            if time.time() - t.get("last_seen", 0) <= 60
+        ]
+        if len(active) == 1:
+            return self.sessions.get(active[0]["session_id"])
+        return None
 
     def get_global_active_tabs_count(self) -> int:
         """獲取全局活躍標籤頁數量"""

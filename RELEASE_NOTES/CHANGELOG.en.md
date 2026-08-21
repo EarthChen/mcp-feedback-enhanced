@@ -2,6 +2,12 @@
 
 This document records all version updates for **MCP Feedback Enhanced**.
 
+## [v2.11.1] - 2026-08-21 - Session/Tab One-to-One Correspondence Fix
+
+### 🐛 Bug Fixes
+
+- 🔧 **Session↔Tab Correspondence**: Multi-session feedback now refreshes the correct browser tab. Pending session-update notifications are tracked per session (no longer a single global flag that concurrent sessions overwrote), and an active-tab registry lets a single session always reuse its own tab across calls even when `mcp_session_id` varies. Added regression tests.
+
 ## [v2.11.0] - 2026-08-21 - Agent Skill Support
 
 ### ✨ New Features

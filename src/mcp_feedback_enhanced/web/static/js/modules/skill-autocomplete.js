@@ -269,5 +269,55 @@ window.MCPFeedback = window.MCPFeedback || {};
         }
     };
 
+    SkillAutocomplete.prototype.parseSkills = function (text) {
+        const refs = [];
+        if (!text || !this.skillMap) return refs;
+        const re = /\/([a-z0-9][a-z0-9-]*)/g;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            const name = m[1];
+            const key = name.toLowerCase();
+            if (!this.skillMap[key]) continue;
+            const before = m.index === 0 ? '' : text[m.index - 1];
+            if (before && !/\s|\(|（/.test(before)) continue;
+            if (refs.some((r) => r.name.toLowerCase() === key)) continue;
+            let lineEnd = text.indexOf('\n', m.index);
+            if (lineEnd === -1) lineEnd = text.length;
+            const args = text.slice(m.index + m[0].length, lineEnd).trim();
+            refs.push({ name: name, path: this.skillMap[key].path, args: args });
+        }
+        return refs;
+    };
+
     MCPFeedback.SkillAutocomplete = SkillAutocomplete;
+
+    // 自初始化：不依賴 app.js，模塊自行載入技能列表並接管 /skillname 解析
+    const bootSkillAutocomplete = () => {
+        const ac = new SkillAutocomplete();
+        const injectSkills = () => {
+            if (!window.FeedbackApp || !FeedbackApp.prototype.collectFeedbackData) return;
+            const orig = FeedbackApp.prototype.collectFeedbackData;
+            FeedbackApp.prototype.collectFeedbackData = function (options) {
+                const data = orig.call(this, options);
+                if (!data) return data;
+                const ta = document.querySelector('#combinedFeedbackText');
+                const text = ta ? ta.value : '';
+                data.skills = ac.parseSkills(text);
+                return data;
+            };
+        };
+        fetch('/api/skills')
+            .then((r) => r.json())
+            .then((skills) => {
+                ac.init(skills || []);
+                injectSkills();
+            })
+            .catch((e) => console.warn('技能自動補全初始化失敗:', e));
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootSkillAutocomplete);
+    } else {
+        bootSkillAutocomplete();
+    }
 })(window.MCPFeedback);

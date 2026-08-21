@@ -36,9 +36,11 @@
 5. **推送分支与 TAG**
 
    ```bash
-   git push origin main --tags
-   # 或仅推送 TAG：git push origin vX.Y.Z
+   git push origin main          # 先推分支（含发版提交）
+   git push origin vX.Y.Z        # 再推【单个】TAG 触发自动发版（关键）
    ```
+
+   > ⚠️ **务必逐 TAG 推送，勿用 `git push origin --tags`**：一次性批量推多个 TAG 时，GitHub 对其中某个 TAG 的 push 事件可能投递丢失（已知 "On Create Tags" 间歇性不触发问题），导致自动发版未触发；且 `--tags` 会把本地历史旧 TAG 一并推上 origin。
 
 6. **自动发版**
 

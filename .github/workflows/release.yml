@@ -1,10 +1,11 @@
 # 打 TAG 自动发版工作流
-# 触发：向仓库推送 v* 格式的 TAG（通常从 main 分支打完 TAG 后 `git push origin <tag>`）
+# 触发：推送 v* TAG 自动触发；亦可在 Actions 页面手动 workflow_dispatch 兜底（通常 `git push origin vX.Y.Z`）
 # 流程：校验版本 → 构建 → 校验包 → 发布 PyPI → 创建 GitHub Release
 # 前置条件：仓库 Settings → Secrets 需配置 PYPI_API_TOKEN（或在 PyPI 配置 Trusted Publishing/OIDC）
 name: Release on Tag
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'

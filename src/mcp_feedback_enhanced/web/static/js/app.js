@@ -225,7 +225,10 @@
                                 if (self.connectionMonitor) {
                                     self.connectionMonitor.updateConnectionStatus(status, text);
                                 }
-                            }
+                            },
+                            onConnectionReady: function() {
+                                self.flushPendingSubmission();
+                            },
                         });
 
                         // 8. 初始化圖片處理器
@@ -677,11 +680,19 @@
     FeedbackApp.prototype.handleWebSocketOpen = function() {
         console.log('🔗 WebSocket 連接已開啟');
 
-        // 如果有待處理的提交，處理它
+        // 連接開啟後，嘗試發送待處理的回饋
+        this.flushPendingSubmission();
+    };
+
+    /**
+     * 發送待處理的回饋（連接開啟或連接就緒時調用，確保僅發送一次）
+     */
+    FeedbackApp.prototype.flushPendingSubmission = function() {
         if (this.pendingSubmission) {
-            console.log('🔄 處理待提交的回饋');
-            this.submitFeedbackInternal(this.pendingSubmission);
+            const data = this.pendingSubmission;
             this.pendingSubmission = null;
+            console.log('🔄 發送待處理的回饋');
+            this.submitFeedbackInternal(data);
         }
     };
 

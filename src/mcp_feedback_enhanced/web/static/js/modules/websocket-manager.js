@@ -5,8 +5,8 @@
  * 處理 WebSocket 連接、訊息傳遞和重連邏輯
  */
 
-(function() {
-    'use strict';
+(() => {
+    
 
     // 確保命名空間和依賴存在
     window.MCPFeedback = window.MCPFeedback || {};
@@ -33,6 +33,7 @@
         this.onClose = options.onClose || null;
         this.onError = options.onError || null;
         this.onConnectionStatusChange = options.onConnectionStatusChange || null;
+        this.onConnectionReady = options.onConnectionReady || null;
 
         // 標籤頁管理器引用
         this.tabManager = options.tabManager || null;
@@ -40,8 +41,6 @@
         // 連線監控器引用
         this.connectionMonitor = options.connectionMonitor || null;
 
-        // 待處理的提交
-        this.pendingSubmission = null;
         this.sessionUpdatePending = false;
 
         // 網路狀態檢測
@@ -104,22 +103,21 @@
      * 設置 WebSocket 事件監聽器
      */
     WebSocketManager.prototype.setupWebSocketEvents = function() {
-        const self = this;
 
-        this.websocket.onopen = function() {
-            self.handleOpen();
+        this.websocket.onopen = () => {
+            this.handleOpen();
         };
 
-        this.websocket.onmessage = function(event) {
-            self.handleMessage(event);
+        this.websocket.onmessage = (event) => {
+            this.handleMessage(event);
         };
 
-        this.websocket.onclose = function(event) {
-            self.handleClose(event);
+        this.websocket.onclose = (event) => {
+            this.handleClose(event);
         };
 
-        this.websocket.onerror = function(error) {
-            self.handleError(error);
+        this.websocket.onerror = (error) => {
+            this.handleError(error);
         };
     };
 
@@ -232,9 +230,8 @@
         if (event.code === 1000 && event.reason === '會話更新') {
             console.log('🔄 會話更新導致的連接關閉，立即重連...');
             this.sessionUpdatePending = true;
-            const self = this;
-            setTimeout(function() {
-                self.connect();
+            setTimeout(() => {
+                this.connect();
             }, 200);
         }
         // 檢查是否應該重連
@@ -243,7 +240,7 @@
 
             // 改進的指數退避算法：基礎延遲 * 2^重試次數，加上隨機抖動
             const baseDelay = Utils.CONSTANTS.DEFAULT_RECONNECT_DELAY;
-            const exponentialDelay = baseDelay * Math.pow(2, this.reconnectAttempts - 1);
+            const exponentialDelay = baseDelay * 2 ** (this.reconnectAttempts - 1);
             const jitter = Math.random() * 1000; // 0-1秒的隨機抖動
             this.reconnectDelay = Math.min(exponentialDelay + jitter, 30000); // 最大 30 秒
 
@@ -253,11 +250,9 @@
             const reconnectingTemplate = window.i18nManager ? window.i18nManager.t('connectionMonitor.reconnecting') : '重連中... (第{attempt}次)';
             const reconnectingMessage = reconnectingTemplate.replace('{attempt}', this.reconnectAttempts);
             this.updateConnectionStatus('reconnecting', reconnectingMessage);
-
-            const self = this;
-            setTimeout(function() {
-                console.log('🔄 開始重連 WebSocket... (第' + self.reconnectAttempts + '次)');
-                self.connect();
+            setTimeout(() => {
+                console.log('🔄 開始重連 WebSocket... (第' + this.reconnectAttempts + '次)');
+                this.connect();
             }, this.reconnectDelay);
         } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
             console.log('❌ 達到最大重連次數，停止重連');
@@ -314,16 +309,9 @@
      * 處理連接就緒
      */
     WebSocketManager.prototype.handleConnectionReady = function() {
-        // 如果有待提交的內容，現在可以提交了
-        if (this.pendingSubmission) {
-            console.log('🔄 連接就緒，提交待處理的內容');
-            const self = this;
-            setTimeout(function() {
-                if (self.pendingSubmission) {
-                    self.send(self.pendingSubmission);
-                    self.pendingSubmission = null;
-                }
-            }, 100);
+        // 連接已就緒：通知外部刷新待處理的提交（由 FeedbackApp 統一持有與發送）
+        if (this.onConnectionReady) {
+            this.onConnectionReady();
         }
     };
 
@@ -368,18 +356,16 @@
      */
     WebSocketManager.prototype.startHeartbeat = function() {
         this.stopHeartbeat();
-
-        const self = this;
-        this.heartbeatInterval = setInterval(function() {
-            if (self.websocket && self.websocket.readyState === WebSocket.OPEN) {
+        this.heartbeatInterval = setInterval(() => {
+            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                 // 記錄 ping 時間到監控器
-                if (self.connectionMonitor) {
-                    self.connectionMonitor.recordPing();
+                if (this.connectionMonitor) {
+                    this.connectionMonitor.recordPing();
                 }
 
-                self.send({
+                this.send({
                     type: 'heartbeat',
-                    tabId: self.tabManager ? self.tabManager.getTabId() : null,
+                    tabId: this.tabManager ? this.tabManager.getTabId() : null,
                     timestamp: Date.now()
                 });
             }
@@ -408,12 +394,6 @@
         }
     };
 
-    /**
-     * 設置待處理的提交
-     */
-    WebSocketManager.prototype.setPendingSubmission = function(data) {
-        this.pendingSubmission = data;
-    };
 
     /**
      * 檢查是否已連接且就緒
@@ -426,34 +406,33 @@
      * 設置網路狀態檢測
      */
     WebSocketManager.prototype.setupNetworkStatusDetection = function() {
-        const self = this;
 
         // 監聽網路狀態變化
-        window.addEventListener('online', function() {
+        window.addEventListener('online', () => {
             console.log('🌐 網路已恢復，嘗試重新連接...');
-            self.networkOnline = true;
+            this.networkOnline = true;
 
             // 如果 WebSocket 未連接且不在重連過程中，立即嘗試連接
-            if (!self.isConnected && self.reconnectAttempts < self.maxReconnectAttempts) {
+            if (!this.isConnected && this.reconnectAttempts < this.maxReconnectAttempts) {
                 // 重置重連計數器，因為網路問題已解決
-                self.reconnectAttempts = 0;
-                self.reconnectDelay = Utils.CONSTANTS.DEFAULT_RECONNECT_DELAY;
+                this.reconnectAttempts = 0;
+                this.reconnectDelay = Utils.CONSTANTS.DEFAULT_RECONNECT_DELAY;
 
-                setTimeout(function() {
-                    self.connect();
+                setTimeout(() => {
+                    this.connect();
                 }, 1000); // 延遲 1 秒確保網路穩定
             }
         });
 
-        window.addEventListener('offline', function() {
+        window.addEventListener('offline', () => {
             console.log('🌐 網路已斷開');
-            self.networkOnline = false;
+            this.networkOnline = false;
 
             // 更新連接狀態
             const offlineMessage = window.i18nManager ?
                 window.i18nManager.t('connectionMonitor.offline', '網路已斷開') :
                 '網路已斷開';
-            self.updateConnectionStatus('offline', offlineMessage);
+            this.updateConnectionStatus('offline', offlineMessage);
         });
     };
 
@@ -541,7 +520,7 @@
         updateDisplay();
         
         // 每秒更新倒數
-        this.sessionTimeoutInterval = setInterval(function() {
+        this.sessionTimeoutInterval = setInterval(() => {
             self.sessionTimeoutRemaining--;
             updateDisplay();
             
@@ -566,7 +545,7 @@
                 Utils.showMessage(timeoutMessage, Utils.CONSTANTS.MESSAGE_WARNING);
                 
                 // 延遲關閉，讓用戶看到訊息
-                setTimeout(function() {
+                setTimeout(() => {
                     window.close();
                 }, 3000);
             }

@@ -361,9 +361,16 @@ def setup_routes(manager: "WebUIManager"):
                 data = await websocket.receive_text()
                 message = json.loads(data)
 
-                # 消息路由到連接時綁定的會話（多會話隔離：不隨全局會話切換漂移）
-                if session.websocket == websocket:
-                    await handle_websocket_message(manager, session, message)
+                # 每次重新解析當前擁有此 WebSocket 的會話（修正連接轉移後的路由錯誤）
+                # 多會話隔離下，新 MCP 調用會把舊連接轉移到新會話；
+                # 若沿用連接時綁定的舊會話，回饋會被送錯會話而對新會話「失效」
+                owner = manager.get_session_owning_websocket(websocket)
+                if owner is None:
+                    debug_log("WebSocket 擁有者會話已不存在，忽略後續消息")
+                    break
+
+                if owner.websocket == websocket:
+                    await handle_websocket_message(manager, owner, message)
                 else:
                     debug_log("WebSocket 連接已被替換，忽略消息")
                     break
@@ -375,9 +382,10 @@ def setup_routes(manager: "WebUIManager"):
         except Exception as e:
             debug_log(f"WebSocket 錯誤: {e}")
         finally:
-            # 安全清理 WebSocket 連接（僅清理自己綁定的會話）
-            if session.websocket == websocket:
-                session.websocket = None
+            # 安全清理 WebSocket 連接：僅清理當前真正擁有此連接的會話
+            owner = manager.get_session_owning_websocket(websocket)
+            if owner and owner.websocket == websocket:
+                owner.websocket = None
                 debug_log("已清理會話中的 WebSocket 連接")
 
     @manager.app.post("/api/save-settings")

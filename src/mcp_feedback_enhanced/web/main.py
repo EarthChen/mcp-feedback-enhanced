@@ -466,6 +466,20 @@ class WebUIManager:
             return None
         return self.sessions.get(web_session_id)
 
+    def get_session_owning_websocket(self, websocket) -> "WebFeedbackSession | None":
+        """根據 WebSocket 物件查找當前擁有它的會話。
+
+        連接轉移場景下（新 MCP 調用重用舊標籤頁的 WebSocket 並綁定到新會話），
+        舊會話與新會話可能同時指向同一個 WebSocket。優先返回 current_session
+        （即新會話），確保入站訊息路由到正確的會話，避免回饋被送錯會話而「失效」。
+        """
+        if self.current_session and self.current_session.websocket is websocket:
+            return self.current_session
+        for s in self.sessions.values():
+            if s is not self.current_session and s.websocket is websocket:
+                return s
+        return None
+
     def remove_session(self, session_id: str):
         """移除回饋會話"""
         if session_id in self.sessions:

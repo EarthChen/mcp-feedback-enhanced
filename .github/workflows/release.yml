@@ -1,0 +1,75 @@
+# 打 TAG 自动发版工作流
+# 触发：向仓库推送 v* 格式的 TAG（通常从 main 分支打完 TAG 后 `git push origin <tag>`）
+# 流程：校验版本 → 构建 → 校验包 → 发布 PyPI → 创建 GitHub Release
+# 前置条件：仓库 Settings → Secrets 需配置 PYPI_API_TOKEN（或在 PyPI 配置 Trusted Publishing/OIDC）
+name: Release on Tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# contents: write 用于创建 GitHub Release；id-token: write 用于可选的 Trusted Publishing（OIDC）
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: 配置 Python
+        run: uv python install
+
+      - name: 校验版本号与 TAG 一致
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PYPROJECT_VERSION=$(grep '^version =' pyproject.toml | cut -d'"' -f2)
+          echo "TAG 版本: $TAG_VERSION"
+          echo "pyproject 版本: $PYPROJECT_VERSION"
+          if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "::error::TAG ($TAG_VERSION) 与 pyproject 版本 ($PYPROJECT_VERSION) 不一致，请先提交对应版本再打 TAG"
+            exit 1
+          fi
+
+      - name: 安装依赖
+        run: uv sync --dev
+
+      - name: 构建包
+        run: uv build
+
+      - name: 校验包
+        run: uv run twine check dist/*
+
+      - name: 发布到 PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          # 若改用 Trusted Publishing（OIDC）：删除上面 password 行，并在 PyPI 配置本仓库为可信发布者
+
+      - name: 校验 CHANGELOG（仅警告）
+        run: |
+          TAG="v${GITHUB_REF_NAME#v}"
+          for f in RELEASE_NOTES/CHANGELOG.en.md RELEASE_NOTES/CHANGELOG.zh-TW.md RELEASE_NOTES/CHANGELOG.zh-CN.md; do
+            if [ -f "$f" ] && ! grep -q "\[${TAG}\]" "$f"; then
+              echo "::warning::CHANGELOG 文件 $f 未包含版本 $TAG"
+            fi
+          done
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

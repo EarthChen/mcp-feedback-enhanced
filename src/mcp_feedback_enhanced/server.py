@@ -100,7 +100,7 @@ def init_encoding():
                 sys.stdin.reconfigure(encoding="utf-8", errors="replace")
             if hasattr(sys.stderr, "reconfigure"):
                 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-        except:
+        except Exception:
             pass
         return False
 
@@ -463,8 +463,16 @@ async def _interactive_feedback_impl(
 
         debug_log(f"回饋模式: web，超時時間: {effective_timeout} 秒")
 
+        # 取得 MCP 客戶端會話 ID，用於多 Cursor session 隔離
+        mcp_session_id: str | None = None
+        if ctx is not None:
+            try:
+                mcp_session_id = ctx.session_id
+            except Exception as e:
+                debug_log(f"取得 MCP session ID 失敗，回退單會話模式: {e}")
+
         result = await _launch_with_progress(
-            ctx, project_directory, summary, effective_timeout
+            ctx, project_directory, summary, effective_timeout, mcp_session_id
         )
 
         if not result:
@@ -615,16 +623,16 @@ def _get_new_task_instruction(result: dict) -> str:
     return _DEFAULT_NEW_TASK_INSTRUCTION
 
 
-def _assemble_feedback_items(result: dict) -> list[TextContent]:
+def _assemble_feedback_items(result: dict) -> list[TextContent | MCPImage]:
     """Assemble feedback items from result dict.
 
-    This builds the list of TextContent items that will be returned to the agent,
+    This builds the list of content items that will be returned to the agent,
     including user feedback, images, system instructions, and reminders.
 
     When queued_items is present, each item is assembled independently,
     and system-level prompt attachments (NEW TASK, reminders) are added once globally.
     """
-    feedback_items: list[TextContent] = []
+    feedback_items: list[TextContent | MCPImage] = []
     queued_items = result.get("queued_items", [])
 
     if queued_items:
@@ -699,6 +707,7 @@ async def _launch_with_progress(
     project_dir: str,
     summary: str,
     timeout: int,
+    mcp_session_id: str | None = None,
 ) -> dict:
     """Launch web feedback UI with periodic progress notifications.
 
@@ -706,10 +715,12 @@ async def _launch_with_progress(
     to prevent Cursor's idle timeout (120s) from killing the tool call.
     """
     if ctx is None:
-        return await launch_web_feedback_ui(project_dir, summary, timeout)
+        return await launch_web_feedback_ui(
+            project_dir, summary, timeout, mcp_session_id
+        )
 
     feedback_task = asyncio.create_task(
-        launch_web_feedback_ui(project_dir, summary, timeout)
+        launch_web_feedback_ui(project_dir, summary, timeout, mcp_session_id)
     )
 
     elapsed = 0
@@ -733,7 +744,12 @@ async def _launch_with_progress(
     return await feedback_task
 
 
-async def launch_web_feedback_ui(project_dir: str, summary: str, timeout: int) -> dict:
+async def launch_web_feedback_ui(
+    project_dir: str,
+    summary: str,
+    timeout: int,
+    mcp_session_id: str | None = None,
+) -> dict:
     """
     啟動 Web UI 收集回饋，支援自訂超時時間
 
@@ -741,6 +757,7 @@ async def launch_web_feedback_ui(project_dir: str, summary: str, timeout: int) -
         project_dir: 專案目錄路徑
         summary: AI 工作摘要
         timeout: 超時時間（秒）
+        mcp_session_id: MCP 客戶端會話 ID，用於多 Cursor session 隔離
 
     Returns:
         dict: 收集到的回饋資料
@@ -751,8 +768,8 @@ async def launch_web_feedback_ui(project_dir: str, summary: str, timeout: int) -
         # 使用新的 web 模組
         from .web import launch_web_feedback_ui as web_launch
 
-        # 傳遞 timeout 參數給 Web UI
-        return await web_launch(project_dir, summary, timeout)
+        # 傳遞 timeout 與 mcp_session_id 參數給 Web UI
+        return await web_launch(project_dir, summary, timeout, mcp_session_id)
     except ImportError as e:
         # 使用統一錯誤處理
         error_id = ErrorHandler.log_error_with_context(

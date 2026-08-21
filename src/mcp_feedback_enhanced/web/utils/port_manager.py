@@ -268,11 +268,10 @@ class PortManager:
                     f"MCP 實例 {process_name} (PID: {pid}) 是孤兒進程（父進程 {ppid} 已退出），允許清理"
                 )
                 return True
-            else:
-                debug_log(
-                    f"MCP 實例 {process_name} (PID: {pid}) 仍活躍（父進程 {ppid} 存在），跳過清理以支援多實例"
-                )
-                return False
+            debug_log(
+                f"MCP 實例 {process_name} (PID: {pid}) 仍活躍（父進程 {ppid} 存在），跳過清理以支援多實例"
+            )
+            return False
 
         # 非 MCP 的 python/uvicorn 進程：保留原有清理邏輯
         if "python" in process_name and any(

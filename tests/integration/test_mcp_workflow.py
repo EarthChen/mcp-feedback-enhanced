@@ -73,6 +73,10 @@ class TestMCPBasicWorkflow:
             if "error" in result:
                 # 超時是預期的行為
                 assert "超時" in result["error"] or "timeout" in result["error"].lower()
+            elif "content" in result:
+                # MCP 工具調用超時回應：content 結構含超時文本
+                text = result["content"][0].get("text", "") if result["content"] else ""
+                assert "timeout" in text.lower() or "超時" in text
             else:
                 # 或者返回了默認的回應
                 assert TestUtils.validate_web_response(result)

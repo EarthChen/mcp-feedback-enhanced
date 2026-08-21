@@ -160,7 +160,8 @@ class TestWebFeedbackSession:
         assert session.feedback_result == TestData.SAMPLE_FEEDBACK["feedback"]
         assert session.images == TestData.SAMPLE_FEEDBACK["images"]
         assert session.settings == TestData.SAMPLE_FEEDBACK["settings"]
-        assert session.status == SessionStatus.FEEDBACK_SUBMITTED
+        # 驗證狀態：單向狀態機下提交反饋後進入 ACTIVE（等待下次 MCP 調用）
+        assert session.status == SessionStatus.ACTIVE
 
 
 class TestWebUIRoutes:
@@ -175,7 +176,8 @@ class TestWebUIRoutes:
         response = client.get("/")
 
         assert response.status_code == 200
-        assert "MCP Feedback Enhanced" in response.text
+        # 無 session 參數時顯示會話選擇頁（多會話隔離設計）
+        assert "picker-container" in response.text
 
     @pytest.mark.asyncio
     async def test_index_route_with_session(self, web_ui_manager, test_project_dir):
@@ -183,12 +185,13 @@ class TestWebUIRoutes:
         from fastapi.testclient import TestClient
 
         # 創建會話
-        web_ui_manager.create_session(
+        session_id = web_ui_manager.create_session(
             str(test_project_dir), TestData.SAMPLE_SESSION["summary"]
         )
 
         client = TestClient(web_ui_manager.app)
-        response = client.get("/")
+        # 多會話隔離：需透過 ?session= 指定會話
+        response = client.get(f"/?session={session_id}")
 
         assert response.status_code == 200
         assert TestData.SAMPLE_SESSION["summary"] in response.text

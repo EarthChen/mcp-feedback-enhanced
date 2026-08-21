@@ -83,10 +83,14 @@
                 this.websocket = null;
             }
 
-            // 添加語言參數到 WebSocket URL
+            // 添加語言與會話參數到 WebSocket URL（多會話隔離：綁定 URL 指定的會話）
             const language = window.i18nManager ? window.i18nManager.getCurrentLanguage() : 'zh-TW';
-            const wsUrlWithLang = wsUrl + (wsUrl.includes('?') ? '&' : '?') + 'lang=' + language;
-            this.websocket = new WebSocket(wsUrlWithLang);
+            let wsUrlWithParams = wsUrl + (wsUrl.includes('?') ? '&' : '?') + 'lang=' + language;
+            const urlSessionId = new URLSearchParams(window.location.search).get('session');
+            if (urlSessionId) {
+                wsUrlWithParams += '&session=' + encodeURIComponent(urlSessionId);
+            }
+            this.websocket = new WebSocket(wsUrlWithParams);
             this.setupWebSocketEvents();
 
         } catch (error) {

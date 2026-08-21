@@ -237,9 +237,8 @@ class WebFeedbackSession:
 
         self.last_activity = time.time()
 
-        # 如果會話變為已提交狀態，重置清理定時器
-        if next_status == SessionStatus.FEEDBACK_SUBMITTED:
-            self._schedule_auto_cleanup()
+        # 非終態狀態流轉時重置自動清理定時器（活躍活動應重置空閒清理倒計時）
+        self._schedule_auto_cleanup()
 
         debug_log(
             f"✅ 會話 {self.session_id} 狀態流轉: {old_status.value} → {next_status.value} - {self.status_message}"
@@ -698,10 +697,10 @@ class WebFeedbackSession:
             try:
                 self.process.terminate()
                 self.process.wait(timeout=5)
-            except:
+            except Exception:
                 try:
                     self.process.kill()
-                except:
+                except Exception:
                     pass
             self.process = None
 
@@ -793,7 +792,7 @@ class WebFeedbackSession:
                     await self.websocket.send_json(
                         {"type": "command_error", "error": str(e)}
                     )
-                except:
+                except Exception:
                     pass
 
     async def _cleanup_resources_on_timeout(self):
@@ -825,7 +824,7 @@ class WebFeedbackSession:
 
                 process = psutil.Process()
                 memory_before = process.memory_info().rss
-            except:
+            except Exception:
                 pass
 
             # 1. 取消自動清理定時器
@@ -933,7 +932,7 @@ class WebFeedbackSession:
 
                 process = psutil.Process()
                 memory_after = process.memory_info().rss
-            except:
+            except Exception:
                 pass
 
             memory_freed = max(0, memory_before - memory_after)
@@ -1000,7 +999,7 @@ class WebFeedbackSession:
 
                 process = psutil.Process()
                 memory_before = process.memory_info().rss
-            except:
+            except Exception:
                 pass
 
             # 1. 取消自動清理定時器
@@ -1016,12 +1015,12 @@ class WebFeedbackSession:
                     self.process.wait(timeout=5)
                     debug_log(f"會話 {self.session_id} 命令進程已正常終止")
                     resources_cleaned += 1
-                except:
+                except Exception:
                     try:
                         self.process.kill()
                         debug_log(f"會話 {self.session_id} 命令進程已強制終止")
                         resources_cleaned += 1
-                    except:
+                    except Exception:
                         pass
                 self.process = None
 
@@ -1070,7 +1069,7 @@ class WebFeedbackSession:
 
                 process = psutil.Process()
                 memory_after = process.memory_info().rss
-            except:
+            except Exception:
                 pass
 
             memory_freed = max(0, memory_before - memory_after)

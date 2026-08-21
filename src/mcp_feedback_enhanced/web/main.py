@@ -94,7 +94,7 @@ class WebUIManager:
                     f"MCP_WEB_PORT 格式錯誤 ({env_port})，必須為數字，使用自動端口分配"
                 )
         else:
-            debug_log(f"未設定 MCP_WEB_PORT 環境變數，使用自動端口分配")
+            debug_log("未設定 MCP_WEB_PORT 環境變數，使用自動端口分配")
 
         # 使用增強的端口管理，測試模式下禁用自動清理避免權限問題
         auto_cleanup = os.environ.get("MCP_TEST_MODE", "").lower() != "true"
@@ -135,15 +135,17 @@ class WebUIManager:
         # 設置內存監控
         self._setup_memory_monitoring()
 
-        # 重構：使用單一活躍會話而非會話字典
+# 多會話支援：current_session 僅作為「最近建立會話」的向後兼容回退，
+# 真正的隔離以 mcp_session_map（MCP session ID → Web session ID）為準
         self.current_session: WebFeedbackSession | None = None
         self.sessions: dict[str, WebFeedbackSession] = {}  # 保留用於向後兼容
+        self.mcp_session_map: dict[str, str] = {}  # MCP session ID → Web session ID
 
         # 全局標籤頁狀態管理 - 跨會話保持
         self.global_active_tabs: dict[str, dict] = {}
 
-        # 會話更新通知標記
-        self._pending_session_update = False
+        # 會話更新通知標記：存儲目標 session_id（None = 無待通知）
+        self._pending_session_update: str | None = None
 
         # 會話清理統計
         self.cleanup_stats: dict[str, Any] = {
@@ -351,10 +353,31 @@ class WebUIManager:
         else:
             raise RuntimeError(f"Templates directory not found: {web_templates_path}")
 
-    def create_session(self, project_directory: str, summary: str) -> str:
-        """創建新的回饋會話 - 重構為單一活躍會話模式，保留標籤頁狀態"""
+    def create_session(
+        self, project_directory: str, summary: str, mcp_session_id: str | None = None
+    ) -> str:
+        """創建新的回饋會話 - 支援多會話隔離，保留標籤頁狀態
+
+        Args:
+            project_directory: 專案目錄路徑
+            summary: AI 工作摘要
+            mcp_session_id: MCP 客戶端會話 ID（如 fastmcp ctx.session_id）。
+                提供時以 MCP session 為隔離單元：不同 Cursor session 的會話互不干擾，
+                同一 MCP session 的重入調用替換其舊會話（保留原有狀態機語義）。
+                未提供時退回原單一活躍會話行為。
+        """
+        # 找出同一 MCP session 的舊會話
+        old_session: WebFeedbackSession | None = None
+        if mcp_session_id:
+            old_web_session_id = self.mcp_session_map.get(mcp_session_id)
+            if old_web_session_id:
+                old_session = self.sessions.get(old_web_session_id)
+                if old_session is None:
+                    debug_log(f"MCP 會話 {mcp_session_id} 的舊 Web 會話已被清理")
+        else:
+            old_session = self.current_session
+
         # 保存舊會話的引用和 WebSocket 連接
-        old_session = self.current_session
         old_websocket = None
         if old_session and old_session.websocket:
             old_websocket = old_session.websocket
@@ -402,12 +425,16 @@ class WebUIManager:
         # 將全局標籤頁狀態繼承到新會話
         session.active_tabs = self.global_active_tabs.copy()
 
-        # 設置為當前活躍會話
+        # 設置為當前活躍會話（向後兼容：指向最近建立的會話）
         self.current_session = session
         # 同時保存到字典中以保持向後兼容
         self.sessions[session_id] = session
 
-        debug_log(f"創建新的活躍會話: {session_id}")
+        # 記錄 MCP session → Web session 映射（多會話隔離的核心）
+        if mcp_session_id:
+            self.mcp_session_map[mcp_session_id] = session_id
+
+        debug_log(f"創建新的活躍會話: {session_id} (MCP session: {mcp_session_id or 'N/A'})")
         debug_log(f"繼承 {len(session.active_tabs)} 個活躍標籤頁")
 
         # 處理WebSocket連接轉移
@@ -416,9 +443,9 @@ class WebUIManager:
             session.websocket = old_websocket
             debug_log("已將舊 WebSocket 連接轉移到新會話")
         else:
-            # 沒有舊連接，標記需要發送會話更新通知（當新 WebSocket 連接建立時）
-            self._pending_session_update = True
-            debug_log("沒有舊 WebSocket 連接，設置待更新標記")
+            # 沒有舊連接：記錄待通知的 session_id（多會話隔離：僅該 session 的連接會收到通知）
+            self._pending_session_update = session_id
+            debug_log(f"沒有舊 WebSocket 連接，設置待更新標記: {session_id}")
 
         return session_id
 
@@ -427,8 +454,17 @@ class WebUIManager:
         return self.sessions.get(session_id)
 
     def get_current_session(self) -> WebFeedbackSession | None:
-        """獲取當前活躍會話"""
+        """獲取當前活躍會話（最近建立的，僅作向後兼容回退）"""
         return self.current_session
+
+    def get_session_by_mcp_session_id(
+        self, mcp_session_id: str
+    ) -> WebFeedbackSession | None:
+        """根據 MCP 客戶端會話 ID 獲取對應的回饋會話"""
+        web_session_id = self.mcp_session_map.get(mcp_session_id)
+        if web_session_id is None:
+            return None
+        return self.sessions.get(web_session_id)
 
     def remove_session(self, session_id: str):
         """移除回饋會話"""
@@ -644,12 +680,19 @@ class WebUIManager:
         except Exception as e:
             debug_log(f"無法開啟瀏覽器: {e}")
 
-    async def smart_open_browser(self, url: str) -> bool:
-        """智能開啟瀏覽器 - 檢測是否已有活躍標籤頁
+    async def smart_open_browser(
+        self, url: str, session: "WebFeedbackSession | None" = None
+    ) -> bool:
+        """智能開啟瀏覽器 - 檢測指定會話是否已有活躍標籤頁
+
+        Args:
+            url: 要開啟的 URL（含 session 參數）
+            session: 目標會話；None 時回退為當前活躍會話（向後兼容）
 
         Returns:
             bool: True 表示檢測到活躍標籤頁或桌面模式，False 表示開啟了新視窗
         """
+        target = session if session is not None else self.current_session
 
         try:
             # 檢查是否為桌面模式
@@ -658,14 +701,14 @@ class WebUIManager:
                 return True
 
             # 檢查是否有活躍標籤頁
-            has_active_tabs = await self._check_active_tabs()
+            has_active_tabs = await self._check_active_tabs(target)
 
             if has_active_tabs:
                 debug_log("檢測到活躍標籤頁，發送刷新通知")
                 debug_log(f"向現有標籤頁發送刷新通知：{url}")
 
                 # 向現有標籤頁發送刷新通知
-                refresh_success = await self.notify_existing_tab_to_refresh()
+                refresh_success = await self.notify_existing_tab_to_refresh(target)
 
                 debug_log(f"刷新通知發送結果: {refresh_success}")
                 debug_log("檢測到活躍標籤頁，不開啟新瀏覽器視窗")
@@ -782,14 +825,21 @@ class WebUIManager:
         except Exception as e:
             debug_log(f"檢查 WebSocket 連接狀態時發生錯誤: {e}")
 
-    async def notify_existing_tab_to_refresh(self) -> bool:
+    async def notify_existing_tab_to_refresh(
+        self, session: "WebFeedbackSession | None" = None
+    ) -> bool:
         """通知現有標籤頁刷新顯示新會話內容
+
+        Args:
+            session: 承載新內容的會話（其 websocket 為轉移過來的舊連接）；
+                None 時回退為當前活躍會話（向後兼容）
 
         Returns:
             bool: True 表示成功發送，False 表示失敗
         """
+        target = session if session is not None else self.current_session
         try:
-            if not self.current_session or not self.current_session.websocket:
+            if not target or not target.websocket:
                 debug_log("沒有活躍的WebSocket連接，無法發送刷新通知")
                 return False
 
@@ -799,16 +849,16 @@ class WebUIManager:
                 "action": "new_session_created",
                 "messageCode": "session.created",
                 "session_info": {
-                    "session_id": self.current_session.session_id,
-                    "project_directory": self.current_session.project_directory,
-                    "summary": self.current_session.summary,
-                    "status": self.current_session.status.value,
+                    "session_id": target.session_id,
+                    "project_directory": target.project_directory,
+                    "summary": target.summary,
+                    "status": target.status.value,
                 },
             }
 
             # 發送刷新通知
-            await self.current_session.websocket.send_json(refresh_message)
-            debug_log(f"已向現有標籤頁發送刷新通知: {self.current_session.session_id}")
+            await target.websocket.send_json(refresh_message)
+            debug_log(f"已向現有標籤頁發送刷新通知: {target.session_id}")
 
             # 簡單等待一下讓消息發送完成
             await asyncio.sleep(0.2)
@@ -819,16 +869,23 @@ class WebUIManager:
             debug_log(f"發送刷新通知失敗: {e}")
             return False
 
-    async def _check_active_tabs(self) -> bool:
-        """檢查是否有活躍標籤頁 - 使用分層檢測機制"""
+    async def _check_active_tabs(
+        self, session: "WebFeedbackSession | None" = None
+    ) -> bool:
+        """檢查指定會話是否有活躍標籤頁 - 使用分層檢測機制
+
+        Args:
+            session: 目標會話；None 時回退為當前活躍會話（向後兼容）
+        """
+        target = session if session is not None else self.current_session
         try:
             # 快速檢測層：檢查 WebSocket 物件是否存在
-            if not self.current_session or not self.current_session.websocket:
-                debug_log("快速檢測：沒有當前會話或 WebSocket 連接")
+            if not target or not target.websocket:
+                debug_log("快速檢測：沒有目標會話或 WebSocket 連接")
                 return False
 
             # 檢查心跳（如果有心跳記錄）
-            last_heartbeat = getattr(self.current_session, "last_heartbeat", None)
+            last_heartbeat = getattr(target, "last_heartbeat", None)
             if last_heartbeat:
                 heartbeat_age = time.time() - last_heartbeat
                 if heartbeat_age > 10:  # 超過 10 秒沒有心跳
@@ -841,7 +898,7 @@ class WebUIManager:
             # 準確檢測層：實際測試連接是否活著
             try:
                 # 檢查 WebSocket 連接狀態
-                websocket = self.current_session.websocket
+                websocket = target.websocket
 
                 # 檢查連接是否已關閉
                 if hasattr(websocket, "client_state"):
@@ -856,7 +913,7 @@ class WebUIManager:
                                     f"準確檢測：WebSocket 狀態不是 CONNECTED，而是 {websocket.client_state}"
                                 )
                                 # 清理死連接
-                                self.current_session.websocket = None
+                                target.websocket = None
                                 return False
                     except ImportError:
                         # 如果導入失敗，使用替代方法
@@ -872,8 +929,8 @@ class WebUIManager:
             except Exception as e:
                 debug_log(f"準確檢測：連接測試失敗 - {e}")
                 # 連接已死，清理它
-                if self.current_session:
-                    self.current_session.websocket = None
+                if target:
+                    target.websocket = None
                 return False
 
         except Exception as e:
@@ -982,7 +1039,7 @@ class WebUIManager:
         cleaned_count = 0
 
         for i in range(max_cleanup):
-            session_id, session, priority = sessions_to_clean[i]
+            session_id, session, _ = sessions_to_clean[i]
             try:
                 # 使用增強清理方法
                 session._cleanup_sync_enhanced(CleanupReason.MEMORY_PRESSURE)
@@ -1058,7 +1115,7 @@ class WebUIManager:
             stats["memory_usage_mb"] = round(
                 process.memory_info().rss / (1024 * 1024), 2
             )
-        except:
+        except Exception:
             pass
 
         return stats
@@ -1122,24 +1179,28 @@ def get_web_ui_manager() -> WebUIManager:
 
 
 async def launch_web_feedback_ui(
-    project_directory: str, summary: str, timeout: int = 600
+    project_directory: str,
+    summary: str,
+    timeout: int = 600,
+    mcp_session_id: str | None = None,
 ) -> dict:
     """
-    啟動 Web 回饋介面並等待用戶回饋 - 重構為使用根路徑
+    啟動 Web 回饋介面並等待用戶回饋 - 支援多會話隔離
 
     Args:
         project_directory: 專案目錄路徑
         summary: AI 工作摘要
         timeout: 超時時間（秒）
+        mcp_session_id: MCP 客戶端會話 ID，用於多 Cursor session 隔離
 
     Returns:
         dict: 回饋結果，包含 logs、interactive_feedback 和 images
     """
     manager = get_web_ui_manager()
 
-    # 創建新會話（每次AI調用都應該創建新會話）
-    manager.create_session(project_directory, summary)
-    session = manager.get_current_session()
+    # 創建新會話（每次AI調用都應該創建新會話；不同 MCP session 互不干擾）
+    session_id = manager.create_session(project_directory, summary, mcp_session_id)
+    session = manager.get_session(session_id)
 
     if not session:
         raise RuntimeError("無法創建回饋會話")
@@ -1151,16 +1212,20 @@ async def launch_web_feedback_ui(
     # 檢查是否為桌面模式
     desktop_mode = os.environ.get("MCP_DESKTOP_MODE", "").lower() == "true"
 
-    # 使用根路徑 URL
-    feedback_url = manager.get_server_url()  # 直接使用根路徑
+    # Web 模式使用帶 session 參數的 URL：每個 MCP session 一個獨立標籤頁；桌面模式保持根路徑
+    feedback_url = (
+        f"{manager.get_server_url()}/?session={session_id}"
+        if not desktop_mode
+        else manager.get_server_url()
+    )
 
     if desktop_mode:
-        # 桌面模式：啟動桌面應用程式
+        # 桌面模式：啟動桌面應用程式（單窗口，保持原有行為）
         debug_log("檢測到桌面模式，啟動桌面應用程式...")
         has_active_tabs = await manager.launch_desktop_app(feedback_url)
     else:
-        # Web 模式：智能開啟瀏覽器
-        has_active_tabs = await manager.smart_open_browser(feedback_url)
+        # Web 模式：智能開啟瀏覽器（針對本會話的標籤頁檢測與刷新通知）
+        has_active_tabs = await manager.smart_open_browser(feedback_url, session=session)
 
     debug_log(f"[DEBUG] 實例 {manager.instance_id} 服務器地址: {feedback_url}")
 
@@ -1199,6 +1264,8 @@ def stop_web_ui():
 if __name__ == "__main__":
 
     async def main():
+        from ..debug import debug_log
+
         try:
             project_dir = os.getcwd()
             summary = """# Markdown 功能測試
@@ -1237,8 +1304,6 @@ element.innerHTML = renderedContent;
 ---
 
 **測試狀態**: ✅ 功能正常運作"""
-
-            from ..debug import debug_log
 
             debug_log("啟動 Web UI 測試...")
             debug_log(f"專案目錄: {project_dir}")

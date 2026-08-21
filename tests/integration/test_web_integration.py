@@ -38,7 +38,8 @@ class TestWebUIIntegration:
             async with session.get(f"{base_url}/") as response:
                 assert response.status == 200
                 text = await response.text()
-                assert "MCP Feedback Enhanced" in text
+                # 無 session 參數時顯示會話選擇頁（多會話隔離設計）
+                assert "picker-container" in text
 
             # 測試靜態文件
             async with session.get(f"{base_url}/static/css/style.css") as response:
@@ -158,10 +159,12 @@ class TestWebUISessionManagement:
         assert current_session.session_id == session_id_2
         assert current_session.summary == "第二個會話"
 
-        # 3. 測試會話狀態更新
+        # 3. 測試會話狀態流轉（單向狀態機：WAITING→ACTIVE→FEEDBACK_SUBMITTED）
         from mcp_feedback_enhanced.web.models import SessionStatus
 
-        current_session.update_status(SessionStatus.FEEDBACK_SUBMITTED, "已提交回饋")
+        assert current_session.next_step("會話已啟動") is True
+        assert current_session.status == SessionStatus.ACTIVE
+        assert current_session.next_step("已提交反饋") is True
         assert current_session.status == SessionStatus.FEEDBACK_SUBMITTED
 
     @pytest.mark.asyncio
@@ -186,10 +189,10 @@ class TestWebUISessionManagement:
         assert session.images == TestData.SAMPLE_FEEDBACK["images"]
         assert session.settings == TestData.SAMPLE_FEEDBACK["settings"]
 
-        # 驗證狀態已更新
+        # 驗證狀態已更新（單向狀態機：提交反饋後進入 ACTIVE，等待下次 MCP 調用）
         from mcp_feedback_enhanced.web.models import SessionStatus
 
-        assert session.status == SessionStatus.FEEDBACK_SUBMITTED
+        assert session.status == SessionStatus.ACTIVE
 
     @pytest.mark.asyncio
     async def test_session_timeout_handling(self, web_ui_manager, test_project_dir):
@@ -232,11 +235,11 @@ class TestWebUIErrorHandling:
         base_url = f"http://{web_ui_manager.host}:{web_ui_manager.port}"
 
         async with aiohttp.ClientSession() as session:
-            # 測試主頁應該顯示等待頁面
+            # 測試主頁應該顯示會話選擇頁（無活躍會話且無 session 參數）
             async with session.get(f"{base_url}/") as response:
                 assert response.status == 200
                 text = await response.text()
-                assert "MCP Feedback Enhanced" in text
+                assert "picker-container" in text
 
             # 測試當前會話 API 應該返回無會話狀態
             async with session.get(f"{base_url}/api/current-session") as response:

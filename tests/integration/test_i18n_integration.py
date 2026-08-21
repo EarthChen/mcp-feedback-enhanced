@@ -168,7 +168,7 @@ class TestI18NEnvironmentIntegration:
                 {"LANG": "zh_TW.UTF-8", "expected": "zh-TW"},
                 {"LANG": "zh_CN.UTF-8", "expected": "zh-CN"},
                 {"LANG": "en_US.UTF-8", "expected": "en"},
-                {"LANG": "ja_JP.UTF-8", "expected": "en"},  # 不支援的語言應回退
+                {"LANG": "ja_JP.UTF-8", "expected": "zh-TW"},  # 不支援的語言回退到項目默認 (zh-TW)
             ]
 
             for test_case in test_cases:
@@ -216,12 +216,18 @@ class TestI18NEnvironmentIntegration:
                     os.environ.pop(var, None)
 
     def test_i18n_with_web_ui_manager(self, web_ui_manager, i18n_manager):
-        """測試 I18N 與 WebUIManager 的集成"""
-        # 驗證 WebUIManager 使用了 I18N 管理器
-        assert hasattr(web_ui_manager, "i18n")
-        assert web_ui_manager.i18n is not None
+        """測試 I18N 與 WebUIManager 的集成
 
-        # 測試語言切換對 WebUIManager 的影響
+        設計變更：翻譯已移至前端，WebUIManager 不再持有 i18n 屬性，
+        但全局 I18N 管理器（get_i18n_manager）仍可用於訊息代碼查找。
+        """
+        from mcp_feedback_enhanced.i18n import get_i18n_manager
+
+        # 驗證全局 I18N 管理器可用
+        global_i18n = get_i18n_manager()
+        assert global_i18n is not None
+
+        # 測試語言切換對全局 I18N 的影響
         original_lang = i18n_manager.get_current_language()
 
         for lang in TestData.SUPPORTED_LANGUAGES:
@@ -229,8 +235,8 @@ class TestI18NEnvironmentIntegration:
                 success = i18n_manager.set_language(lang)
                 assert success == True
 
-                # WebUIManager 應該能夠訪問當前語言設置
-                current_lang = web_ui_manager.i18n.get_current_language()
+                # 全局 I18N 應反映切換後的語言
+                current_lang = get_i18n_manager().get_current_language()
                 assert current_lang == lang
                 break
 

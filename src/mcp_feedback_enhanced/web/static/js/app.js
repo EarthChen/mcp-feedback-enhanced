@@ -914,6 +914,16 @@
                 // 1. 更新會話資訊
                 if (data.session_info) {
                     self.currentSessionId = data.session_info.session_id;
+                    // 同步更新 URL 上的 session 參數，確保後續請求路由到新會話
+                    if (window.history && window.history.replaceState) {
+                        try {
+                            const newUrl = new URL(window.location.href);
+                            newUrl.searchParams.set('session', data.session_info.session_id);
+                            window.history.replaceState(null, '', newUrl);
+                        } catch (e) {
+                            console.warn('更新 URL session 參數失敗:', e);
+                        }
+                    }
                     console.log('📋 新會話 ID:', self.currentSessionId);
                 }
 
@@ -1718,7 +1728,12 @@
     FeedbackApp.prototype.updateSummaryStatus = function(message) {
         const summaryElements = document.querySelectorAll('.ai-summary-content');
         summaryElements.forEach(function(element) {
-            element.innerHTML = '<div style="padding: 16px; background: var(--success-color); color: white; border-radius: 6px; text-align: center;">✅ ' + message + '</div>';
+            const statusEl = document.createElement('div');
+            statusEl.style.cssText =
+                'padding: 16px; background: var(--success-color); color: white; border-radius: 6px; text-align: center;';
+            statusEl.textContent = '✅ ' + message;
+            element.textContent = '';
+            element.appendChild(statusEl);
         });
     };
 
@@ -1852,6 +1867,17 @@
         // 只更新當前會話 ID，不管理狀態
         this.currentSessionId = sessionData.session_id;
 
+        // 同步更新 URL 上的 session 參數
+        if (window.history && window.history.replaceState) {
+            try {
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('session', sessionData.session_id);
+                window.history.replaceState(null, '', newUrl);
+            } catch (e) {
+                console.warn('更新 URL session 參數失敗:', e);
+            }
+        }
+
         // 局部更新頁面內容
         this.refreshPageContent();
     };
@@ -1864,7 +1890,11 @@
 
         const self = this;
 
-        fetch('/api/current-session')
+        // 多會話隔離：優先請求 URL 指定的會話，避免拿到其他會話的內容
+        const urlSessionId = new URLSearchParams(window.location.search).get('session');
+        const apiPath = '/api/current-session' + (urlSessionId ? '?session_id=' + encodeURIComponent(urlSessionId) : '');
+
+        fetch(apiPath)
             .then(function(response) {
                 if (!response.ok) {
                     throw new Error('API 請求失敗: ' + response.status);
@@ -1938,7 +1968,7 @@
                     // 創建倒數計時器
                     this.countdown = window.MCPFeedback.Utils.Time.createAutoSubmitCountdown(
                         timeoutSeconds,
-                        function(remainingTime, isCompleted) {
+                        function(remainingTime) {
                             // 更新倒數計時顯示
                             self.updateCountdownDisplay(remainingTime);
                         },

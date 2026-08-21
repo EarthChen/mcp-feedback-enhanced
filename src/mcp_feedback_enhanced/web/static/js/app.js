@@ -245,7 +245,6 @@
 
                         // 13. 初始化 Textarea 高度管理器
                         this.initializeTextareaHeightManager();
-                        this.initializeSkillAutocomplete();
 
                         // 14. 應用設定到 UI
                         this.settingsManager.applyToUI();
@@ -290,27 +289,6 @@
     /**
      * 設置事件監聽器
      */
-    /**
-     * 初始化技能自動補全（/ 模糊搜尋 + 摘要可點擊）
-     */
-    FeedbackApp.prototype.initializeSkillAutocomplete = function() {
-        if (!window.MCPFeedback.SkillAutocomplete) {
-            console.warn('SkillAutocomplete 模組未載入');
-            return;
-        }
-        const ac = new window.MCPFeedback.SkillAutocomplete();
-        this.skillAutocomplete = ac;
-        fetch('/api/skills')
-            .then((r) => r.json())
-            .then((skills) => {
-                ac.init(skills || []);
-                console.log('✅ 技能自動補全已初始化，共', (skills || []).length, '個技能');
-            })
-            .catch((e) => {
-                console.warn('載入技能列表失敗:', e);
-            });
-    };
-
     FeedbackApp.prototype.setupEventListeners = function() {
 
         return new Promise((resolve) => {
@@ -1293,34 +1271,10 @@
             contextRefreshText = this.settingsManager.get('contextRefreshText', '');
         }
 
-        // 從回饋文字中解析 /skillname（僅匹配已知技能），回傳 path 與參數（G3）
-        var skillRefs = [];
-        if (this.skillAutocomplete && this.skillAutocomplete.skillMap && feedback) {
-            var skillRe = /\/([a-z0-9][a-z0-9-]*)/g;
-            var sm;
-            while ((sm = skillRe.exec(feedback)) !== null) {
-                var sname = sm[1];
-                var skey = sname.toLowerCase();
-                if (!this.skillAutocomplete.skillMap[skey]) continue;
-                var sbefore = sm.index === 0 ? '' : feedback[sm.index - 1];
-                if (sbefore && !/\s|\(|（/.test(sbefore)) continue;
-                if (skillRefs.some((r) => r.name.toLowerCase() === skey)) continue;
-                var slineEnd = feedback.indexOf('\n', sm.index);
-                if (slineEnd === -1) slineEnd = feedback.length;
-                var sargs = feedback.slice(sm.index + sm[0].length, slineEnd).trim();
-                skillRefs.push({
-                    name: sname,
-                    path: this.skillAutocomplete.skillMap[skey].path,
-                    args: sargs
-                });
-            }
-        }
-
         return {
             feedback: feedback,
             images: images,
             clear_context: clearContext,
-            skills: skillRefs,
             settings: {
                 image_size_limit: this.imageHandler ? this.imageHandler.imageSizeLimit : 0,
                 enable_base64_detail: this.imageHandler ? this.imageHandler.enableBase64Detail : false,
@@ -1366,8 +1320,7 @@
                 feedback: feedbackData.feedback,
                 images: feedbackData.images,
                 settings: feedbackData.settings,
-                clear_context: feedbackData.clear_context || false,
-                skills: feedbackData.skills || [],
+                clear_context: feedbackData.clear_context || false
             });
 
             if (success) {

@@ -2,6 +2,18 @@
 
 This document records all version updates for **MCP Feedback Enhanced**.
 
+## [v2.12.2] - 2026-08-24 - Skill Injection Reliability Improvements
+
+### 🐛 Bug Fixes
+
+- 🔧 **Skill Parse Hook Never Applied**: Fixed `skill-autocomplete.js` looking up `window.FeedbackApp` instead of `MCPFeedback.FeedbackApp`, which left `skills` empty on submit and prevented `SKILL.md` injection.
+- 🔧 **Queued First Item Missing Skills**: The first message in batch feedback mode now carries `skills` and `project_directory`, so skill injection is not skipped.
+
+### ✨ New Features
+
+- 🛡️ **Server-Side Skill Parse Fallback**: When the frontend omits `skills`, the server parses `/skillname` from feedback text and injects content (still gated by the scan allowlist).
+- 📝 **Same-Line Multi-Skill Parsing**: Multiple `/skillname` tokens on one line split args at the next skill reference, e.g. `/tdd write tests /code-review review diff`.
+
 ## [v2.12.1] - 2026-08-24 - Skill Injection and Post-Submit Highlight Fix
 
 ### 🐛 Bug Fixes

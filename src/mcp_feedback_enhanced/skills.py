@@ -12,6 +12,7 @@ Cursor's internal skill UI.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 
@@ -51,6 +52,61 @@ def filter_valid_skills(
         if path and os.path.isfile(path) and os.path.realpath(path) in known:
             valid.append(skill)
     return valid
+
+
+_SKILL_REF_RE = re.compile(r"/([a-z0-9][a-z0-9-]*)")
+
+
+def parse_skills_from_text(
+    text: str, project_dir: str | None = None
+) -> list[dict]:
+    """從反饋正文解析 ``/skillname`` 引用（與前端 parseSkills 對齊）。
+
+    供前端未附帶 ``skills`` 欄位時的服務端兜底；解析結果仍經
+    ``filter_valid_skills`` 校驗後才讀取檔案。
+    同一行多個 skill 時，args 取到下一個同行 skill 之前。
+    """
+    if not text:
+        return []
+    index = {s["name"].lower(): s for s in scan_skill_directories(project_dir)}
+    matches: list[dict] = []
+    for match in _SKILL_REF_RE.finditer(text):
+        name = match.group(1)
+        key = name.lower()
+        if key not in index:
+            continue
+        before = text[match.start() - 1] if match.start() > 0 else ""
+        if before and before not in " \t\n(":
+            continue
+        matches.append(
+            {
+                "name": name,
+                "key": key,
+                "start": match.start(),
+                "end": match.end(),
+                "path": index[key]["path"],
+            }
+        )
+
+    refs: list[dict] = []
+    seen: set[str] = set()
+    for i, cur in enumerate(matches):
+        if cur["key"] in seen:
+            continue
+        line_start = text.rfind("\n", 0, cur["start"]) + 1
+        line_end = text.find("\n", cur["start"])
+        if line_end == -1:
+            line_end = len(text)
+        args_end = line_end
+        for other in matches:
+            if other["start"] <= cur["end"]:
+                continue
+            if line_start <= other["start"] < line_end and other["start"] < args_end:
+                args_end = other["start"]
+        args = text[cur["end"] : args_end].strip()
+        refs.append({"name": cur["name"], "path": cur["path"], "args": args})
+        seen.add(cur["key"])
+    return refs
 
 
 def _parse_frontmatter(path: str) -> dict:

@@ -38,7 +38,11 @@ from pydantic import Field
 
 # 導入統一的調試功能
 from .debug import server_debug_log as debug_log
-from .skills import SKILL_CONTENT_MAX_CHARS, filter_valid_skills
+from .skills import (
+    SKILL_CONTENT_MAX_CHARS,
+    filter_valid_skills,
+    parse_skills_from_text,
+)
 
 # 導入多語系支援
 # 導入錯誤處理框架
@@ -362,9 +366,13 @@ def create_feedback_text(feedback_data: dict) -> str:
     # 技能調用（G3：直接將 SKILL.md 內容注入，保證 agent 執行，不依賴 Cursor 的 / UI）
     # 安全校驗：path 必須命中服務端掃描清單（按真實路徑比對），防任意檔案讀取；
     # 容量保護：單一 SKILL.md 超過上限時截斷並標註。
+    project_dir = feedback_data.get("project_directory") or None
     skills = feedback_data.get("skills")
+    if not skills:
+        feedback_text = feedback_data.get("interactive_feedback") or ""
+        if feedback_text:
+            skills = parse_skills_from_text(feedback_text, project_dir)
     if skills:
-        project_dir = feedback_data.get("project_directory") or None
         skill_blocks = []
         for skill in filter_valid_skills(skills, project_dir):
             skill_path = skill.get("path", "")
@@ -674,6 +682,8 @@ def _assemble_feedback_items(result: dict) -> list[TextContent | MCPImage]:
             "interactive_feedback": result.get("interactive_feedback", ""),
             "command_logs": result.get("command_logs", ""),
             "images": result.get("images", []),
+            "skills": result.get("skills", []),
+            "project_directory": result.get("project_directory", ""),
         }
         all_items = [first_item] + queued_items
 

@@ -446,6 +446,7 @@ window.MCPFeedback = window.MCPFeedback || {};
         const refs = [];
         if (!text || !this.skillMap) return refs;
         const re = /\/([a-z0-9][a-z0-9-]*)/g;
+        const matches = [];
         let m;
         while ((m = re.exec(text)) !== null) {
             const name = m[1];
@@ -453,11 +454,30 @@ window.MCPFeedback = window.MCPFeedback || {};
             if (!this.skillMap[key]) continue;
             const before = m.index === 0 ? '' : text[m.index - 1];
             if (before && !/\s|\(|（/.test(before)) continue;
-            if (refs.some((r) => r.name.toLowerCase() === key)) continue;
-            let lineEnd = text.indexOf('\n', m.index);
+            matches.push({
+                name: name,
+                key: key,
+                start: m.index,
+                end: m.index + m[0].length,
+                path: this.skillMap[key].path,
+            });
+        }
+        for (let i = 0; i < matches.length; i++) {
+            const cur = matches[i];
+            if (refs.some((r) => r.name.toLowerCase() === cur.key)) continue;
+            const lineStart = text.lastIndexOf('\n', cur.start - 1) + 1;
+            let lineEnd = text.indexOf('\n', cur.start);
             if (lineEnd === -1) lineEnd = text.length;
-            const args = text.slice(m.index + m[0].length, lineEnd).trim();
-            refs.push({ name: name, path: this.skillMap[key].path, args: args });
+            let argsEnd = lineEnd;
+            for (let j = 0; j < matches.length; j++) {
+                const other = matches[j];
+                if (other.start <= cur.end) continue;
+                if (other.start >= lineStart && other.start < lineEnd && other.start < argsEnd) {
+                    argsEnd = other.start;
+                }
+            }
+            const args = text.slice(cur.end, argsEnd).trim();
+            refs.push({ name: cur.name, path: cur.path, args: args });
         }
         return refs;
     };
@@ -468,9 +488,11 @@ window.MCPFeedback = window.MCPFeedback || {};
     const bootSkillAutocomplete = () => {
         const ac = new SkillAutocomplete();
         const injectSkills = () => {
-            if (!window.FeedbackApp || !FeedbackApp.prototype.collectFeedbackData) return;
-            const orig = FeedbackApp.prototype.collectFeedbackData;
-            FeedbackApp.prototype.collectFeedbackData = function (options) {
+            const App = window.MCPFeedback && window.MCPFeedback.FeedbackApp;
+            if (!App || !App.prototype.collectFeedbackData) return;
+            if (App.prototype.collectFeedbackData._skillParseWrapped) return;
+            const orig = App.prototype.collectFeedbackData;
+            App.prototype.collectFeedbackData = function (options) {
                 const data = orig.call(this, options);
                 if (!data) return data;
                 const ta = document.querySelector('#combinedFeedbackText');
@@ -480,6 +502,7 @@ window.MCPFeedback = window.MCPFeedback || {};
                 ac._clearDraft();
                 return data;
             };
+            App.prototype.collectFeedbackData._skillParseWrapped = true;
         };
         fetch('/api/skills')
             .then((r) => r.json())

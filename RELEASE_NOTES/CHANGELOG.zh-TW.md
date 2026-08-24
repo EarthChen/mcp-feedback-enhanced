@@ -2,6 +2,18 @@
 
 本文件記錄了 **MCP Feedback Enhanced** 的所有版本更新內容。
 
+## [v2.12.2] - 2026-08-24 - 技能注入可靠性增強
+
+### 🐛 錯誤修復
+
+- 🔧 **技能解析未掛載**：修復 `skill-autocomplete.js` 誤用 `window.FeedbackApp`（應為 `MCPFeedback.FeedbackApp`），導致提交時 `skills` 始終為空、`SKILL.md` 未注入的問題。
+- 🔧 **隊列首條遺失 skills**：批量反饋模式下首條訊息現在也攜帶 `skills` 與 `project_directory`，避免技能注入被跳過。
+
+### ✨ 新功能
+
+- 🛡️ **服務端技能解析兜底**：當前端未附帶 `skills` 時，服務端從反饋正文解析 `/skillname` 並注入（仍經路徑白名單校驗）。
+- 📝 **同行多 skill 解析**：同一行多個 `/skillname` 時，參數在下一個 skill 引用前截斷，例如 `/tdd 寫測試 /code-review 審查`。
+
 ## [v2.12.1] - 2026-08-24 - 技能注入與提交後高亮修復
 
 ### 🐛 錯誤修復

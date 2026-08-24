@@ -15,6 +15,7 @@ import pytest
 from mcp_feedback_enhanced.server import create_feedback_text
 from mcp_feedback_enhanced.skills import (
     SKILL_CONTENT_MAX_CHARS,
+    parse_skills_from_text,
     scan_skill_directories,
 )
 
@@ -136,3 +137,43 @@ def test_oversized_skill_content_truncated_with_marker(fake_home):
     assert "已截斷" in text, "截斷後必須有明確標註"
     skill_section = text.split("=== Skill: big ===", 1)[1]
     assert len(skill_section) < SKILL_CONTENT_MAX_CHARS + 500
+
+
+def test_skill_parsed_from_feedback_text_when_skills_field_missing(fake_home):
+    """前端未附帶 skills 時，服務端應從 interactive_feedback 兜底解析。"""
+    path = _make_skill(fake_home, name="demo", body="兜底注入內容")
+    text = create_feedback_text(
+        {
+            "interactive_feedback": "/demo 請執行這個技能",
+            "command_logs": "",
+            "images": [],
+        }
+    )
+    assert "=== Skill: demo ===" in text
+    assert str(path) in text
+    assert "兜底注入內容" in text
+
+
+def test_multiple_skills_on_same_line_parsed_with_split_args(fake_home):
+    """同一行多個 skill 時，args 應在下一個 skill 前截斷。"""
+    path_a = _make_skill(fake_home, name="alpha", body="ALPHA_BODY")
+    path_b = _make_skill(fake_home, name="beta", body="BETA_BODY")
+    parsed = parse_skills_from_text("/alpha first args /beta second args")
+    assert [p["name"] for p in parsed] == ["alpha", "beta"]
+    assert parsed[0]["args"] == "first args"
+    assert parsed[1]["args"] == "second args"
+    text = create_feedback_text(
+        {
+            "interactive_feedback": "/alpha first args /beta second args",
+            "command_logs": "",
+            "images": [],
+        }
+    )
+    assert "=== Skill: alpha ===" in text
+    assert "=== Skill: beta ===" in text
+    assert "Arguments: first args" in text
+    assert "Arguments: second args" in text
+    assert "ALPHA_BODY" in text
+    assert "BETA_BODY" in text
+    assert str(path_a) in text
+    assert str(path_b) in text

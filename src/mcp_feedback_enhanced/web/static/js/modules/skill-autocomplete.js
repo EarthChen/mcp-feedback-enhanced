@@ -361,6 +361,16 @@ window.MCPFeedback = window.MCPFeedback || {};
         } catch { /* 忽略 */ }
     };
 
+    /** 提交成功或重置表單時：清空輸入、草稿與高亮鏡像層 */
+    SkillAutocomplete.prototype.resetInput = function (ta) {
+        ta = ta || document.querySelector('#combinedFeedbackText');
+        if (!ta) return;
+        ta.value = '';
+        this._clearDraft();
+        this._updateHighlight(ta);
+        this._hide();
+    };
+
     // ---------- 摘要中的 /skillname 可點擊 ----------
     SkillAutocomplete.prototype.makeSummarySkillsClickable = function () {
         ['#summaryContent', '#combinedSummaryContent', '.ai-summary-content'].forEach((sel) => {
@@ -475,6 +485,7 @@ window.MCPFeedback = window.MCPFeedback || {};
             .then((r) => r.json())
             .then((skills) => {
                 ac.init(skills || []);
+                window.MCPFeedback._skillAutocomplete = ac;
                 injectSkills();
             })
             .catch((e) => console.warn('技能自動補全初始化失敗:', e));

@@ -2,6 +2,13 @@
 
 This document records all version updates for **MCP Feedback Enhanced**.
 
+## [v2.12.1] - 2026-08-24 - Skill Injection and Post-Submit Highlight Fix
+
+### 🐛 Bug Fixes
+
+- 🔧 **Skills Not Injected to Agent**: WebSocket feedback submission now includes the `skills` field, fixing `/skillname` being forwarded as plain text without injecting the `SKILL.md` body.
+- 🔧 **Highlight Persisted After Submit**: Clears the input, draft, and highlight mirror layer after successful submission, fixing colored `/skill` backgrounds lingering in the submitted state.
+
 ## [v2.12.0] - 2026-08-24 - Heartbeat Keepalive Fix and Skill UX Enhancements
 
 ### 🐛 Bug Fixes

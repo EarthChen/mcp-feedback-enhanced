@@ -505,6 +505,11 @@
         if (feedbackInput) {
             if (clearText === true) {
                 feedbackInput.value = '';
+                if (window.MCPFeedback._skillAutocomplete) {
+                    window.MCPFeedback._skillAutocomplete.resetInput(feedbackInput);
+                } else if (feedbackInput._skillBackdrop) {
+                    feedbackInput._skillBackdrop.textContent = '';
+                }
                 console.log('📝 已清空文字內容');
             }
             // 只有在等待狀態才啟用輸入框

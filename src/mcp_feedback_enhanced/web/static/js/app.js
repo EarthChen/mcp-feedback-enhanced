@@ -796,6 +796,13 @@
             Utils.showMessage(data.message || successMessage, Utils.CONSTANTS.MESSAGE_SUCCESS);
         }
 
+        // 清空輸入框，避免已提交內容的高亮鏡像層殘留
+        if (window.MCPFeedback._skillAutocomplete) {
+            window.MCPFeedback._skillAutocomplete.resetInput();
+        } else if (this.uiManager) {
+            this.uiManager.resetFeedbackForm(true);
+        }
+
         // 更新 AI 摘要區域顯示「已送出反饋」狀態
         const submittedMessage = window.i18nManager ? window.i18nManager.t('feedback.submittedWaiting') : '已送出反饋，等待下次 MCP 調用...';
         this.updateSummaryStatus(submittedMessage);
@@ -1180,9 +1187,10 @@
                 images: feedbackData.images,
                 settings: feedbackData.settings,
                 clear_context: feedbackData.clear_context || false,
+                skills: feedbackData.skills || [],
                 queued: true
             });
-            if (this.uiManager) this.uiManager.resetFeedbackForm(false);
+            if (this.uiManager) this.uiManager.resetFeedbackForm(true);
             if (this.imageHandler) this.imageHandler.clearImages();
             const msg = window.i18nManager ? window.i18nManager.t('feedback.queuedSuccess') : '回饋已加入隊列';
             Utils.showMessage(msg, Utils.CONSTANTS.MESSAGE_INFO);
@@ -1320,13 +1328,14 @@
                 feedback: feedbackData.feedback,
                 images: feedbackData.images,
                 settings: feedbackData.settings,
-                clear_context: feedbackData.clear_context || false
+                clear_context: feedbackData.clear_context || false,
+                skills: feedbackData.skills || []
             });
 
             if (success) {
                 // 重置表單狀態但保留文字內容
                 if (this.uiManager) {
-                    this.uiManager.resetFeedbackForm(false);  // false 表示不清空文字
+                    this.uiManager.resetFeedbackForm(true);
                 }
                 // 只清空圖片
                 if (this.imageHandler) {
@@ -1908,7 +1917,10 @@
                 if (this.uiManager) {
                     // console.log('🔧 準備更新 AI 摘要內容，summary 長度:', sessionData.summary ? sessionData.summary.length : 'undefined');
                     this.uiManager.updateAISummaryContent(sessionData.summary);
-                    this.uiManager.resetFeedbackForm(false);  // 不清空文字內容
+                    const waiting =
+                        this.uiManager.getFeedbackState() ===
+                        window.MCPFeedback.Utils.CONSTANTS.FEEDBACK_WAITING;
+                    this.uiManager.resetFeedbackForm(waiting);
                     this.uiManager.updateStatusIndicator();
                 }
 

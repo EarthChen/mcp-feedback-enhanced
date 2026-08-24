@@ -155,3 +155,47 @@ async def test_progress_stops_after_feedback_received():
         f"Progress should stop after feedback received. "
         f"Initial: {initial_count}, Final: {final_count}"
     )
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_log_notification_sent_unconditionally():
+    """等待期間必須同時發送不依賴 progressToken 的 log notification。
+
+    背景：FastMCP 的 report_progress 在客戶端未提供 progressToken 時會靜默
+    no-op（context.py:280），導致 stdio 上沒有任何字節、Cursor 依然按空閒超時
+    掐斷調用。因此每個心跳週期還需發送一條無條件的 logging notification。
+    """
+    from mcp_feedback_enhanced.server import _interactive_feedback_impl
+
+    mock_ctx = MagicMock()
+    mock_ctx.report_progress = AsyncMock()
+    mock_ctx.debug = AsyncMock()
+
+    fake_result = {
+        "interactive_feedback": "test feedback",
+        "command_logs": "",
+        "images": [],
+        "settings": {},
+    }
+
+    async def short_delay_launch(*args, **kwargs):
+        await asyncio.sleep(1.5)
+        return fake_result
+
+    with patch(
+        "mcp_feedback_enhanced.server.launch_web_feedback_ui",
+        side_effect=short_delay_launch,
+    ):
+        with patch(
+            "mcp_feedback_enhanced.server.PROGRESS_INTERVAL_SECONDS", 1
+        ):
+            await _interactive_feedback_impl(
+                project_directory="/tmp/test",
+                summary="test summary",
+                timeout=10,
+                ctx=mock_ctx,
+            )
+
+    assert mock_ctx.debug.call_count >= 1, (
+        f"Expected at least 1 log heartbeat, got {mock_ctx.debug.call_count}"
+    )

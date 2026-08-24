@@ -15,7 +15,42 @@ import os
 from pathlib import Path
 
 
-# 預設掃描用戶級 agents 與 cursor 目錄；專案級目錄由呼叫方傳入 project_dir。
+# 單一 SKILL.md 注入 AI 上下文的字元上限，超出截斷並標註。
+SKILL_CONTENT_MAX_CHARS = 32 * 1024
+
+
+def _skill_roots(project_dir: str | None = None) -> list[str]:
+    """返回技能掃描根目錄列表（與 scan_skill_directories 保持一致）。"""
+    dirs = ["~/.agents/skills", "~/.cursor/skills"]
+    if project_dir:
+        proj = os.path.abspath(os.path.expanduser(project_dir))
+        dirs += [
+            os.path.join(proj, ".agents", "skills"),
+            os.path.join(proj, ".cursor", "skills"),
+        ]
+    return dirs
+
+
+def filter_valid_skills(
+    skills: list, project_dir: str | None = None
+) -> list[dict]:
+    """過濾客戶端提交的技能列表，僅保留服務端掃描清單內的技能。
+
+    校驗基準是 scan_skill_directories 的即時結果（按真實路徑比對），
+    防止客戶端提交任意檔案路徑造成注入；同時相容技能以軟連結
+    放入技能目錄的約定（掃描本身跟隨軟連結）。
+    """
+    known = {
+        os.path.realpath(s["path"]) for s in scan_skill_directories(project_dir)
+    }
+    valid = []
+    for skill in skills:
+        if not isinstance(skill, dict):
+            continue
+        path = skill.get("path", "")
+        if path and os.path.isfile(path) and os.path.realpath(path) in known:
+            valid.append(skill)
+    return valid
 
 
 def _parse_frontmatter(path: str) -> dict:

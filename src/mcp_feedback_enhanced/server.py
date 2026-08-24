@@ -38,6 +38,7 @@ from pydantic import Field
 
 # 導入統一的調試功能
 from .debug import server_debug_log as debug_log
+from .skills import SKILL_CONTENT_MAX_CHARS, filter_valid_skills
 
 # 導入多語系支援
 # 導入錯誤處理框架
@@ -359,21 +360,25 @@ def create_feedback_text(feedback_data: dict) -> str:
             "\n💡 注意：如果 AI 助手無法顯示圖片，圖片數據已包含在上述 Base64 信息中。"
         )
     # 技能調用（G3：直接將 SKILL.md 內容注入，保證 agent 執行，不依賴 Cursor 的 / UI）
+    # 安全校驗：path 必須命中服務端掃描清單（按真實路徑比對），防任意檔案讀取；
+    # 容量保護：單一 SKILL.md 超過上限時截斷並標註。
     skills = feedback_data.get("skills")
     if skills:
+        project_dir = feedback_data.get("project_directory") or None
         skill_blocks = []
-        for skill in skills:
-            if not isinstance(skill, dict):
-                continue
+        for skill in filter_valid_skills(skills, project_dir):
             skill_path = skill.get("path", "")
             skill_name = skill.get("name", "")
-            if not skill_path or not os.path.isfile(skill_path):
-                continue
             try:
                 with open(skill_path, encoding="utf-8") as sf:
                     content = sf.read()
             except OSError:
                 continue
+            if len(content) > SKILL_CONTENT_MAX_CHARS:
+                content = (
+                    content[:SKILL_CONTENT_MAX_CHARS]
+                    + f"\n\n[已截斷：超過 {SKILL_CONTENT_MAX_CHARS} 字元上限]"
+                )
             if not content.strip():
                 continue
             block = f"=== Skill: {skill_name} ===\nPath: {skill_path}"
@@ -761,13 +766,25 @@ async def _launch_with_progress(
             )
         except TimeoutError:
             elapsed += interval
+            # 雙通道保活：report_progress 在客戶端未提供 progressToken 時會靜默
+            # no-op（FastMCP context.py），因此同時發送一條無條件的 logging
+            # notification，確保 stdio 上每個週期都有字節流出，避免 Cursor 空閒超時。
+            progress_sent = False
             try:
-                await ctx.report_progress(
-                    progress=elapsed, total=timeout
-                )
-                debug_log(f"已發送 progress heartbeat ({elapsed}/{timeout}s)")
+                await ctx.report_progress(progress=elapsed, total=timeout)
+                progress_sent = True
             except Exception as e:
                 debug_log(f"發送 progress notification 失敗: {e}")
+            try:
+                await ctx.debug(
+                    f"interactive_feedback 等待用戶回饋中… ({elapsed}s/{timeout}s)"
+                )
+                debug_log(
+                    f"心跳已發送 ({elapsed}/{timeout}s, "
+                    f"progress={'是' if progress_sent else '未知'}）"
+                )
+            except Exception as e:
+                debug_log(f"發送 log heartbeat 失敗: {e}")
 
     return await feedback_task
 

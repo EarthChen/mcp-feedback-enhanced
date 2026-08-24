@@ -536,6 +536,8 @@ class WebFeedbackSession:
                     "settings": self.settings,
                     "clear_context": getattr(self, "clear_context", False),
                     "skills": getattr(self, "selected_skills", []),
+                    # 供 create_feedback_text 校驗專案級 skill 路徑
+                    "project_directory": getattr(self, "project_directory", ""),
                 }
             # 超時了，立即清理資源
             debug_log(

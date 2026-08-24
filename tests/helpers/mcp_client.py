@@ -140,25 +140,28 @@ class SimpleMCPClient:
             raise RuntimeError("stdout 不可用")
 
         try:
-            # 使用 asyncio 超時
-            response_line = await asyncio.wait_for(
-                asyncio.to_thread(self.stdout.readline), timeout=timeout
-            )
-
-            if response_line:
-                response_data = json.loads(response_line.strip())
-                # 修復 no-any-return 錯誤 - 確保返回明確類型
-                return (
-                    dict(response_data)
-                    if isinstance(response_data, dict)
-                    else response_data
+            # 迴圈讀取直到拿到真正的回應：服務端在工具執行期間會向 stdout
+            # 發送 JSON-RPC notification（如進度心跳），需跳過後再等回應。
+            while True:
+                response_line = await asyncio.wait_for(
+                    asyncio.to_thread(self.stdout.readline), timeout=timeout
                 )
-            return None
+
+                if not response_line:
+                    return None
+
+                response_data = json.loads(response_line.strip())
+                if not isinstance(response_data, dict):
+                    continue  # 非 JSON-RPC 訊息，跳過
+                if "result" in response_data or "error" in response_data:
+                    # 修復 no-any-return 錯誤 - 確保返回明確類型
+                    return dict(response_data)
+                # notification（無 result/error）跳過，繼續等待回應
 
         except TimeoutError:
             raise
         except json.JSONDecodeError as e:
-            print(f"JSON 解析錯誤: {e}, 原始數據: {response_line}")
+            print(f"JSON 解析錯誤: {e}, 原始數據: {locals().get('response_line', '')}")
             return None
 
     async def cleanup(self):

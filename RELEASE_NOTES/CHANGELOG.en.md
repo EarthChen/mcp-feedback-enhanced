@@ -2,6 +2,23 @@
 
 This document records all version updates for **MCP Feedback Enhanced**.
 
+## [v2.12.0] - 2026-08-24 - Heartbeat Keepalive Fix and Skill UX Enhancements
+
+### 🐛 Bug Fixes
+
+- 🔧 **Cursor Long-Call Disconnects**: The heartbeat during `interactive_feedback` waiting is now dual-channel — besides progress notifications, a logging notification that does not depend on progressToken is also sent, fixing silent stdio output when the client provides no progressToken (Cursor then killed the call on its idle timeout after ~5 minutes). Heartbeat logs now honestly record what was actually sent.
+- 🔧 **Skill Autocomplete Dead**: Event listeners moved to document-level delegation so rebuilding the feedback textarea no longer orphans them; ArrowUp/Down, Enter/Tab and mouse all select again. Static asset version bumped to bust stale caches.
+
+### ✨ New Features
+
+- 🎨 **Skill Highlighting**: All inserted `/skill` fragments are persistently marked with colored backgrounds in the input box (mirror-layer behind the textarea with scroll sync).
+- 💾 **Draft Protection**: Feedback text is saved to localStorage in real time (keyed per session) and restored automatically after disconnects or page reloads.
+
+### 🔒 Security
+
+- 🛡️ **Skill Injection Path Validation**: Only `SKILL.md` files present in the server-side scan listing are accepted (resolved-path comparison, symlink convention compatible), preventing arbitrary file reads via client-submitted paths; single files are truncated at 32KB with a marker.
+
+
 ## [v2.11.1] - 2026-08-21 - Session/Tab One-to-One Correspondence Fix
 
 ### 🐛 Bug Fixes

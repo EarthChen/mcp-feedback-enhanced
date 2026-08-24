@@ -62,17 +62,58 @@ window.MCPFeedback = window.MCPFeedback || {};
             this.skillMap[String(s.name).toLowerCase()] = s;
         });
 
-        this._attach(document.querySelector('#combinedFeedbackText'));
+        this._setupDelegation();
+        this._observeTextarea();
+        this._onTextareaFound(document.querySelector('#combinedFeedbackText'));
 
         // 監聽摘要渲染，將 /skillname 變為可點擊
         this._observeSummaries();
         this.makeSummarySkillsClickable();
     };
 
-    SkillAutocomplete.prototype._attach = function (textarea) {
-        if (!textarea) return;
-        textarea.addEventListener('input', (e) => { this._onInput(e); });
-        textarea.addEventListener('keydown', (e) => { this._onKeydown(e); });
+    // 事件委托：監聽掛在 document 上，textarea 被 DOM 重建後無需重綁。
+    SkillAutocomplete.prototype._setupDelegation = function () {
+        if (this._delegated) return;
+        this._delegated = true;
+        document.addEventListener('input', (e) => {
+            if (e.target && e.target.id === 'combinedFeedbackText') {
+                this._onInput(e);
+                this._updateHighlight(e.target);
+                this._saveDraft(e.target);
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.target && e.target.id === 'combinedFeedbackText') {
+                this._onKeydown(e);
+            }
+        });
+        // scroll 不冒泡，用捕獲階段同步高亮層滾動
+        document.addEventListener(
+            'scroll',
+            (e) => {
+                if (e.target === document.querySelector('#combinedFeedbackText')) {
+                    this._syncScroll(e.target);
+                }
+            },
+            true
+        );
+    };
+
+    // textarea 出現/重建時：建立高亮層、恢復草稿、刷新渲染
+    SkillAutocomplete.prototype._observeTextarea = function () {
+        if (!('MutationObserver' in window)) return;
+        var observer = new MutationObserver(() => {
+            this._onTextareaFound(document.querySelector('#combinedFeedbackText'));
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    };
+
+    SkillAutocomplete.prototype._onTextareaFound = function (ta) {
+        if (!ta || ta._skillAutocompleteReady) return;
+        ta._skillAutocompleteReady = true;
+        this._ensureBackdrop(ta);
+        this._restoreDraft(ta);
+        this._updateHighlight(ta);
     };
 
     // ---------- 輸入處理 ----------
@@ -196,6 +237,128 @@ window.MCPFeedback = window.MCPFeedback || {};
         ta.setSelectionRange(newPos, newPos);
         ta.focus();
         this._hide();
+        this._updateHighlight(ta);
+        this._saveDraft(ta);
+    };
+
+    // ---------- 高亮鏡像層 ----------
+    // textarea 原生不支援局部著色，在底層疊一個同步排版/滾動的渲染層，
+    // 將 /skill 片段以彩色底色標出；textarea 背景設為透明使其透出。
+    var HIGHLIGHT_PALETTE = [
+        'rgba(74, 158, 255, 0.28)',
+        'rgba(126, 211, 127, 0.30)',
+        'rgba(255, 193, 94, 0.32)',
+        'rgba(224, 110, 180, 0.30)',
+        'rgba(160, 120, 255, 0.30)',
+    ];
+
+    SkillAutocomplete.prototype._colorFor = function (name) {
+        var hash = 0;
+        for (var i = 0; i < name.length; i++) {
+            hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+        }
+        return HIGHLIGHT_PALETTE[hash % HIGHLIGHT_PALETTE.length];
+    };
+
+    SkillAutocomplete.prototype._ensureBackdrop = function (ta) {
+        if (ta._skillBackdrop) return;
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;';
+        ta.parentNode.insertBefore(wrap, ta);
+        wrap.appendChild(ta);
+
+        var bd = document.createElement('div');
+        bd.setAttribute('aria-hidden', 'true');
+        bd.style.cssText = [
+            'position:absolute', 'top:0', 'left:0', 'width:100%', 'height:100%',
+            'pointer-events:none', 'overflow:hidden', 'white-space:pre-wrap',
+            'word-wrap:break-word', 'color:transparent', 'box-sizing:border-box',
+        ].join(';');
+        // 同步字體排版，確保高亮位置與文字重合
+        var ts = window.getComputedStyle(ta);
+        ['fontSize', 'fontFamily', 'fontWeight', 'lineHeight', 'padding',
+         'borderWidth', 'borderStyle', 'letterSpacing'].forEach((prop) => {
+            bd.style[prop] = ts[prop];
+        });
+        // 原背景色轉移到鏡像層，textarea 設為透明讓高亮透出，視覺不變
+        bd.style.backgroundColor = ts.backgroundColor;
+        wrap.insertBefore(bd, ta);
+
+        ta.style.backgroundColor = 'transparent';
+        ta.style.position = 'relative';
+        ta.style.zIndex = '2';
+        ta._skillBackdrop = bd;
+    };
+
+    SkillAutocomplete.prototype._updateHighlight = function (ta) {
+        if (!ta) return;
+        if (!ta._skillBackdrop) this._ensureBackdrop(ta);
+        var bd = ta._skillBackdrop;
+        if (!bd) return;
+        var text = ta.value;
+        if (!text) { bd.textContent = ''; return; }
+        var frag = document.createDocumentFragment();
+        var re = /\/([a-z0-9][a-z0-9-]*)/gi;
+        var m, lastIdx = 0;
+        while ((m = re.exec(text)) !== null) {
+            var key = m[1].toLowerCase();
+            if (!this.skillMap[key]) continue;
+            var before = m.index === 0 ? '' : text[m.index - 1];
+            if (before && !/\s|\(|（/.test(before)) continue;
+            if (m.index > lastIdx) {
+                frag.appendChild(document.createTextNode(text.slice(lastIdx, m.index)));
+            }
+            var span = document.createElement('span');
+            span.textContent = m[0];
+            span.style.backgroundColor = this._colorFor(key);
+            span.style.borderRadius = '3px';
+            frag.appendChild(span);
+            lastIdx = m.index + m[0].length;
+        }
+        if (lastIdx < text.length) {
+            frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+        }
+        bd.textContent = '';
+        bd.appendChild(frag);
+        this._syncScroll(ta);
+    };
+
+    SkillAutocomplete.prototype._syncScroll = function (ta) {
+        if (ta && ta._skillBackdrop) {
+            ta._skillBackdrop.scrollTop = ta.scrollTop;
+        }
+    };
+
+    // ---------- 草稿保護 ----------
+    // 反饋文本實時存 localStorage，斷連/刷新後自動恢復，避免未提交內容丟失。
+    SkillAutocomplete.prototype._draftKey = function () {
+        var sid = 'unknown';
+        try {
+            sid = new URLSearchParams(window.location.search).get('session') || 'unknown';
+        } catch { /* 保持預設 */ }
+        return 'mcpFeedbackDraft:' + sid;
+    };
+
+    SkillAutocomplete.prototype._saveDraft = function (ta) {
+        try {
+            localStorage.setItem(this._draftKey(), ta.value);
+        } catch { /* 隱私模式等情境下靜默失敗 */ }
+    };
+
+    SkillAutocomplete.prototype._restoreDraft = function (ta) {
+        var saved = null;
+        try {
+            saved = localStorage.getItem(this._draftKey());
+        } catch { return; }
+        if (saved && !ta.value) {
+            ta.value = saved;
+        }
+    };
+
+    SkillAutocomplete.prototype._clearDraft = function () {
+        try {
+            localStorage.removeItem(this._draftKey());
+        } catch { /* 忽略 */ }
     };
 
     // ---------- 摘要中的 /skillname 可點擊 ----------
@@ -303,6 +466,8 @@ window.MCPFeedback = window.MCPFeedback || {};
                 const ta = document.querySelector('#combinedFeedbackText');
                 const text = ta ? ta.value : '';
                 data.skills = ac.parseSkills(text);
+                // 反饋已採集，草稿使命完成，清除以免下次會話誤恢復舊內容
+                ac._clearDraft();
                 return data;
             };
         };

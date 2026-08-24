@@ -85,5 +85,5 @@ ui_settings.json
 .config/
 .docs/PROPOSALS/
 
-# Temporary test files
-test_*.py
+# Temporary test files（僅限倉庫根目錄，避免誤傷 tests/ 下的正式測試）
+/test_*.py

@@ -33,7 +33,7 @@ from typing import Annotated, Any
 
 from fastmcp import Context, FastMCP
 from fastmcp.utilities.types import Image as MCPImage
-from mcp.types import TextContent
+from mcp.types import CancelledNotification, TextContent
 from pydantic import Field
 
 # 導入統一的調試功能
@@ -136,6 +136,43 @@ else:
     fastmcp_settings["log_level"] = "INFO"
 
 mcp: Any = FastMCP(SERVER_NAME)
+
+# ===== 取消通知處理 =====
+# Cursor 停止按鈕會發送 notifications/cancelled，但 MCP SDK / FastMCP 均不
+# 處理該通知，導致服務端等待任務（含心跳）持續運行至 timeout：會話殘留、
+# 遲到響應喚醒 agent 觸發重試。此註冊表 + 處理器使取消信號即時終止等待。
+_INFLIGHT_FEEDBACK_TASKS: dict[str, asyncio.Task] = {}
+
+
+async def _handle_cancelled_notification(notification) -> None:
+    """收到客戶端取消通知時，終止對應 request 的等待任務。"""
+    params = getattr(notification, "params", None)
+    request_id = (
+        str(params.requestId) if params and params.requestId is not None else None
+    )
+    if request_id is None:
+        return
+
+    task = _INFLIGHT_FEEDBACK_TASKS.pop(request_id, None)
+    if task is not None and not task.done():
+        debug_log(f"收到客戶端取消通知，終止等待任務 (request_id={request_id})")
+        task.cancel()
+
+
+def _register_cancel_notification_handler() -> None:
+    """向低層 MCP Server 註冊取消通知處理器（冪等、失敗不影響啟動）。"""
+    try:
+        low_level_server = getattr(mcp, "_mcp_server", None)
+        if low_level_server is not None:
+            low_level_server.notification_handlers[CancelledNotification] = (
+                _handle_cancelled_notification
+            )
+            debug_log("已註冊 notifications/cancelled 處理器")
+    except Exception as e:
+        debug_log(f"註冊取消通知處理器失敗: {e}")
+
+
+_register_cancel_notification_handler()
 
 
 # ===== 工具函數 =====
@@ -398,8 +435,6 @@ def create_feedback_text(feedback_data: dict) -> str:
         if skill_blocks:
             text_parts.append("\n\n".join(skill_blocks))
 
-
-
     return "\n\n".join(text_parts) if text_parts else "用戶未提供任何回饋內容。"
 
 
@@ -525,6 +560,16 @@ async def _interactive_feedback_impl(
         debug_log(f"回饋收集完成，共 {len(feedback_items)} 個項目")
         return feedback_items
 
+    except TimeoutError as e:
+        # 超時必須與一般錯誤區分：明確告知「會話已關閉、勿自動重試」，
+        # 否則 agent 依 usage rules 視為普通返回而再次調用（表現為延遲重試）。
+        debug_log(f"等待用戶回饋超時，會話已關閉: {e!s}")
+        timeout_msg = (
+            "⏱️ 等待用戶回饋超時，會話已自動關閉。\n"
+            "請勿自動重試本工具；僅在用戶明確要求繼續時再次調用。"
+        )
+        return [TextContent(type="text", text=timeout_msg)]
+
     except Exception as e:
         error_id = ErrorHandler.log_error_with_context(
             e,
@@ -612,7 +657,11 @@ def _get_feedback_reminder(result: dict) -> str | None:
 
     enabled = settings.get("feedbackReminderEnabled")
     if enabled is None:
-        enabled = os.getenv("MCP_APPEND_REMINDER", "true").lower() in ("true", "1", "yes")
+        enabled = os.getenv("MCP_APPEND_REMINDER", "true").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
     if not enabled:
         return None
 
@@ -637,7 +686,11 @@ def _get_context_refresh_reminder(result: dict) -> str | None:
 
     enabled = settings.get("contextRefreshEnabled")
     if enabled is None:
-        enabled = os.getenv("MCP_CONTEXT_REFRESH_ENABLED", "true").lower() in ("true", "1", "yes")
+        enabled = os.getenv("MCP_CONTEXT_REFRESH_ENABLED", "true").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
     if not enabled:
         return None
 
@@ -709,7 +762,9 @@ def _assemble_feedback_items(result: dict) -> list[TextContent | MCPImage]:
         if not any_clear:
             context_refresh_text = _get_context_refresh_reminder(result)
             if context_refresh_text:
-                feedback_items.append(TextContent(type="text", text=context_refresh_text))
+                feedback_items.append(
+                    TextContent(type="text", text=context_refresh_text)
+                )
     else:
         # Single-item mode: original behavior (unchanged)
         if (
@@ -740,9 +795,34 @@ def _assemble_feedback_items(result: dict) -> list[TextContent | MCPImage]:
         if not result.get("clear_context"):
             context_refresh_text = _get_context_refresh_reminder(result)
             if context_refresh_text:
-                feedback_items.append(TextContent(type="text", text=context_refresh_text))
+                feedback_items.append(
+                    TextContent(type="text", text=context_refresh_text)
+                )
 
     return feedback_items
+
+
+def _cleanup_session_on_cancel(mcp_session_id: str | None) -> None:
+    """取消/斷開時同步清理對應的回饋會話，終止 web 端等待與資源。
+
+    使用同步清理：取消路徑處於取消上下文中，避免再 await 被再次打斷。
+    僅在能按 mcp_session_id 精確定位會話時清理，避免誤殺其他會話；
+    無法定位時由既有自動清理機制兜底回收。
+    """
+    if not mcp_session_id:
+        return
+    try:
+        from .web.main import get_web_ui_manager
+
+        manager = get_web_ui_manager()
+        session = manager.get_session_by_mcp_session_id(mcp_session_id)
+        if session is not None and not session.is_terminal():
+            from .web.models import CleanupReason
+
+            debug_log(f"請求已取消，清理回饋會話: {session.session_id}")
+            session._cleanup_sync_enhanced(CleanupReason.MANUAL)
+    except Exception as e:
+        debug_log(f"取消後清理會話失敗: {e}")
 
 
 async def _launch_with_progress(
@@ -756,6 +836,10 @@ async def _launch_with_progress(
 
     Sends MCP progress notifications at PROGRESS_INTERVAL_SECONDS intervals
     to prevent Cursor's idle timeout (120s) from killing the tool call.
+
+    取消語義：外層任務被取消（Cursor 停止按鈕 / 連接斷開）時，
+    必須同步終止內層等待任務並清理會話，禁止使用 asyncio.shield
+    產生孤兒任務（否則服務端會空等至 timeout，遲到響應喚醒 agent）。
     """
     if ctx is None:
         return await launch_web_feedback_ui(
@@ -766,37 +850,57 @@ async def _launch_with_progress(
         launch_web_feedback_ui(project_dir, summary, timeout, mcp_session_id)
     )
 
-    elapsed = 0
-    interval = PROGRESS_INTERVAL_SECONDS
+    # 註冊進行中任務，供取消通知處理器按 request_id 定位終止
+    request_id: str | None = None
+    try:
+        request_id = str(ctx.request_id)
+    except Exception:
+        request_id = None
+    if request_id:
+        _INFLIGHT_FEEDBACK_TASKS[request_id] = feedback_task
 
-    while not feedback_task.done():
-        try:
-            await asyncio.wait_for(
-                asyncio.shield(feedback_task), timeout=interval
-            )
-        except TimeoutError:
-            elapsed += interval
-            # 雙通道保活：report_progress 在客戶端未提供 progressToken 時會靜默
-            # no-op（FastMCP context.py），因此同時發送一條無條件的 logging
-            # notification，確保 stdio 上每個週期都有字節流出，避免 Cursor 空閒超時。
-            progress_sent = False
-            try:
-                await ctx.report_progress(progress=elapsed, total=timeout)
-                progress_sent = True
-            except Exception as e:
-                debug_log(f"發送 progress notification 失敗: {e}")
-            try:
-                await ctx.debug(
-                    f"interactive_feedback 等待用戶回饋中… ({elapsed}s/{timeout}s)"
-                )
-                debug_log(
-                    f"心跳已發送 ({elapsed}/{timeout}s, "
-                    f"progress={'是' if progress_sent else '未知'}）"
-                )
-            except Exception as e:
-                debug_log(f"發送 log heartbeat 失敗: {e}")
+    try:
+        elapsed = 0
+        interval = PROGRESS_INTERVAL_SECONDS
 
-    return await feedback_task
+        # 注意：外層取消的傳播由 except CancelledError 顯式處理（shield 僅用於
+        # 心跳週期超時時保護 feedback_task 不被 wait_for 誤取消）。
+        while not feedback_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(feedback_task), timeout=interval)
+            except TimeoutError:
+                elapsed += interval
+                # 雙通道保活：report_progress 在客戶端未提供 progressToken 時會靜默
+                # no-op（FastMCP context.py），因此同時發送一條無條件的 logging
+                # notification，確保 stdio 上每個週期都有字節流出，避免 Cursor 空閒超時。
+                progress_sent = False
+                try:
+                    await ctx.report_progress(progress=elapsed, total=timeout)
+                    progress_sent = True
+                except Exception as e:
+                    debug_log(f"發送 progress notification 失敗: {e}")
+                try:
+                    await ctx.debug(
+                        f"interactive_feedback 等待用戶回饋中… ({elapsed}s/{timeout}s)"
+                    )
+                    debug_log(
+                        f"心跳已發送 ({elapsed}/{timeout}s, "
+                        f"progress={'是' if progress_sent else '未知'}）"
+                    )
+                except Exception as e:
+                    debug_log(f"發送 log heartbeat 失敗: {e}")
+
+        return await feedback_task
+    except asyncio.CancelledError:
+        # 外層被取消：終止內層等待任務並清理會話，避免孤兒任務空等至 timeout。
+        if not feedback_task.done():
+            feedback_task.cancel()
+        await asyncio.gather(feedback_task, return_exceptions=True)
+        _cleanup_session_on_cancel(mcp_session_id)
+        raise
+    finally:
+        if request_id:
+            _INFLIGHT_FEEDBACK_TASKS.pop(request_id, None)
 
 
 async def launch_web_feedback_ui(

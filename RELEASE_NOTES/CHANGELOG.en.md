@@ -2,6 +2,17 @@
 
 This document records all version updates for **MCP Feedback Enhanced**.
 
+## [v2.13.0] - 2026-11-17 - Session Switcher Entry & Cancellation Handling
+
+### ✨ New Features
+
+- 🔀 **Session switcher entry**: when multiple sessions are waiting for feedback, a dropdown appears in the top bar to jump directly to another session; hidden when only one session is active, refreshed immediately when the page becomes visible.
+
+### 🐛 Bug Fixes
+
+- 🔧 **Immediate cancellation**: registered a `notifications/cancelled` handler so a client stop request terminates the waiting task and cleans up the session, preventing stale sessions and late responses triggering retries.
+- 🔧 **Timeout semantics**: timeout responses now explicitly tell the agent the session is closed and must not be retried automatically.
+
 ## [v2.12.2] - 2026-08-24 - Skill Injection Reliability Improvements
 
 ### 🐛 Bug Fixes

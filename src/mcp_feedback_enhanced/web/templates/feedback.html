@@ -428,6 +428,15 @@
                   title="點擊複製完整會話ID">{{ session_id[:6] if session_id else '--' }}</span>
         </div>
 
+        <!-- 會話切換器（存在多個等待回饋的會話時顯示） -->
+        <div id="sessionSwitcherContainer" class="session-switcher-compact" style="display: none;">
+            <span class="info-separator">·</span>
+            <select id="sessionSwitcherSelect" class="session-switcher-select"
+                    data-i18n-title="sessionManagement.switchSession"
+                    title="切换会话"
+                    aria-label="切换会话"></select>
+        </div>
+
         <!-- 倒數計時器（條件顯示） -->
         <div id="countdownDisplay" class="countdown-display-compact auto-submit-display" style="display: none;">
             <span class="info-separator">·</span>
@@ -1283,6 +1292,7 @@
     <script src="/static/js/modules/session/session-data-manager.js?v=2025010510"></script>
     <script src="/static/js/modules/session/session-ui-renderer.js?v=2025010510"></script>
     <script src="/static/js/modules/session/session-details-modal.js?v=2025010510"></script>
+    <script src="/static/js/modules/session/session-switcher.js?v=202611171500"></script>
 
     <!-- 提示詞管理模組 -->
     <script src="/static/js/modules/prompt/prompt-manager.js?v=2025010510"></script>
@@ -1313,7 +1323,7 @@
     <!-- 主應用程式 -->
     <script src="/static/js/modules/skill-autocomplete.js?v=202608241845"></script>
 
-    <script src="/static/js/app.js?v=202602141001"></script>
+    <script src="/static/js/app.js?v=202611171500"></script>
     <script>
         // 等待所有模組載入完成後再初始化 FeedbackApp
         async function initializeApp() {

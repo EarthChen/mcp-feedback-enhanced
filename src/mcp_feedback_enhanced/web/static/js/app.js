@@ -246,6 +246,9 @@
                         // 13. 初始化 Textarea 高度管理器
                         this.initializeTextareaHeightManager();
 
+                        // 13.5 初始化會話切換器（多會話時顯示切換入口）
+                        this.sessionSwitcher = new window.MCPFeedback.SessionSwitcher();
+
                         // 14. 應用設定到 UI
                         this.settingsManager.applyToUI();
 
